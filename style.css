@@ -1,0 +1,201 @@
+* {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    user-select: none;
+    cursor: default;
+    margin: 0;
+}
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+}
+
+#sidebar {
+    background-color: hsl(30, 100%, 65%);
+    height: 50px;
+    width: 100%;
+}
+
+#sidebar>div {
+    height: fit-content;
+    width: fit-content;
+    margin: 0 auto;
+    display: flex;
+}
+
+#sidebar p {
+    padding: 13px 15px 4px 15px;
+    width: fit-content;
+    font-weight: bold;
+    font-size: 13.6px;
+    line-height: 24px;
+    cursor: pointer;
+    color: white;
+}
+
+#sidebar p:hover {
+    background-color: hsl(30, 64%, 55%);
+}
+
+#sideIcon {
+    border: 2.5px solid white;
+    border-radius: 2.5px;
+    transition: 0.25s;
+    margin: 5px 15px;
+    cursor: pointer;
+    height: 35px;
+    width: 35px;
+}
+
+#sideIcon:hover {
+    transform: scale(1.1);
+}
+
+#display {
+    height: calc(100% - 50px);
+    overflow-y: scroll;
+    width: 100%;
+}
+
+#display::-webkit-scrollbar {
+    display: none;
+}
+
+a {
+    text-decoration: none;
+    font-weight: bold;
+    color: #4d97ff;
+}
+
+a:hover {
+    color: #4588e6ff;
+}
+
+#display>div {
+    background-color: white;
+}
+
+#display>div>div {
+    margin: 10px auto;
+    width: 800px;
+}
+
+p {
+    color: rgb(87, 94, 117);
+    font-weight: 400;
+    font-size: 16px;
+}
+
+h2 {
+    color: rgb(87, 94, 117);
+}
+
+#display>div>p {
+    background-color: hsl(30, 60%, 60%);
+    text-align: center;
+    font-weight: bold;
+    font-size: 48px;
+    color: white;
+    height: 71.6px;
+    padding: 10px;
+    width: 100%;
+}
+
+#topProject {
+    border-radius: 10px;
+    object-fit: cover;
+    transition: 0.5s;
+    height: 334px;
+    width: 942px;
+}
+
+#dark {
+    background-color: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    position: absolute;
+    height: 334px;
+    width: 942px;
+    left: 0;
+    top: 0;
+}
+
+#icon {
+    border-radius: 5px;
+    position: relative;
+    height: 64px;
+    width: 64px;
+    top: -85px;
+    left: 20px;
+    z-index: 1;
+}
+
+#tpDiv {
+    position: relative;
+    height: 354px;
+}
+
+#search {
+    background-color: hsl(30, 76%, 59%);
+    border-radius: 5px;
+    width: 343.513px;
+    display: flex;
+    height: 40px;
+    margin: 5px;
+}
+
+#search>input {
+    background-color: rgba(0, 0, 0, 0);
+    font-size: 13.6px;
+    color: white;
+    margin: 10px 0;
+    border: 0;
+}
+
+#search>input::placeholder {
+    color: white;
+}
+
+#search>input:focus-visible {
+    outline: 0;
+    border: 0;
+}
+
+#nsg {
+    background-image: url(https://scratch.mit.edu/images/nav-search-glass.png);
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    background-position: 50%;
+    height: 40px;
+    width: 40px;
+}
+
+#searchContent {
+    grid-template-columns: repeat(4, 1fr);
+    display: grid;
+    gap: 10px;
+}
+
+.content {
+    border: 2px solid silver;
+    background-color: white;
+    border-radius: 5px;
+    height: 204px;
+    width: 220px;
+}
+
+.content>img {
+    border-radius: 5px;
+    height: 153px;
+    width: 204px;
+    margin: 8px;
+}
+
+.content>a {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    display: block;
+    margin: 0 8px;
+    width: 204px;
+}
