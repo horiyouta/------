@@ -4,6 +4,8 @@ const topPage = /** @type { HTMLParagraphElement } */ (document.getElementById(`
 const seaCon = /** @type { HTMLDivElement } */ (document.getElementById(`searchContent`));
 const display = /** @type { HTMLDivElement } */ (document.getElementById(`display`));
 const modeDivs = /** @type { HTMLCollectionOf<HTMLDivElement> } */ (display.children);
+const tool = /** @type { HTMLParagraphElement } */ (document.getElementById(`tool`));
+const info = /** @type { HTMLParagraphElement } */ (document.getElementById(`info`));
 const sInp = /** @type { HTMLInputElement } */ (document.getElementById(`sInp`));
 const nsg = /** @type { HTMLDivElement } */ (document.getElementById(`nsg`));
 
@@ -35,6 +37,7 @@ const searchResult = (word) => {
         link.target = `_blank`;
         link.title = data[list[i]].title;
         link.textContent = data[list[i]].title;
+        img.addEventListener(`click`, () => { link.click() });
         content.appendChild(link);
         seaCon.appendChild(content);
         list.splice(i, 1);
@@ -43,7 +46,7 @@ const searchResult = (word) => {
     seaCon.textContent = ``;
     const today = new Date();
     const month = String(today.getMonth() + 1);
-    const date = String(today.getDate()); 
+    const date = String(today.getDate());
     for (let i = 0; i < data.length; i++) {
         if (
             word == `全て` || (word != `1年前` && data[i].title.includes(word)) ||
@@ -69,3 +72,5 @@ frameFunc();
 addEventListener(`keydown`, (event) => { if (event.key == `Enter` && sInp.value != ``) searchResult(sInp.value) });
 nsg.addEventListener(`click`, () => { if (sInp.value != ``) searchResult(sInp.value) });
 topPage.addEventListener(`click`, () => { mode = 0 });
+tool.addEventListener(`click`, () => { mode = 2 });
+info.addEventListener(`click`, () => { mode = 3 });
