@@ -1,7 +1,9 @@
 // 読み込み 初期化
 
 const topPage = /** @type { HTMLParagraphElement } */ (document.getElementById(`topPage`));
+const roundFile = /** @type { HTMLInputElement } */ (document.getElementById(`roundFile`));
 const seaCon = /** @type { HTMLDivElement } */ (document.getElementById(`searchContent`));
+const convert = /** @type { HTMLButtonElement } */ (document.getElementById(`convert`));
 const display = /** @type { HTMLDivElement } */ (document.getElementById(`display`));
 const modeDivs = /** @type { HTMLCollectionOf<HTMLDivElement> } */ (display.children);
 const tool = /** @type { HTMLParagraphElement } */ (document.getElementById(`tool`));
@@ -65,6 +67,19 @@ const searchResult = (word) => {
     }
 }
 
+const convertRound = () => {
+    if (0 < roundFile.files.length) {
+        const fileReader = new FileReader();
+        fileReader.addEventListener(`load`, () => {
+            const svg = document.createElement(`a`);
+            svg.href = URL.createObjectURL(new Blob([fileReader.result.replace(/(?<=stroke\-linejoin\=\").*?(?=\")/g, `round`)], {type: `svg/image`}));
+            svg.download = roundFile.files[0].name;
+            svg.click();
+        });
+        fileReader.readAsText(roundFile.files[0])
+    }
+}
+
 // 全体処理
 
 frameFunc();
@@ -74,3 +89,4 @@ nsg.addEventListener(`click`, () => { if (sInp.value != ``) searchResult(sInp.va
 topPage.addEventListener(`click`, () => { mode = 0 });
 tool.addEventListener(`click`, () => { mode = 2 });
 info.addEventListener(`click`, () => { mode = 3 });
+convert.addEventListener(`click`, convertRound);
