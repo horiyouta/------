@@ -199,3 +199,10 @@ h2 {
     margin: 0 8px;
     width: 204px;
 }
+
+#ta {
+    width: calc(100% - 20px);
+    height: 100px;
+    margin: 10px;
+    resize: none;
+}

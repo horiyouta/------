@@ -4,17 +4,17 @@ const topPage = /** @type { HTMLParagraphElement } */ (document.getElementById(`
 const roundFile = /** @type { HTMLInputElement } */ (document.getElementById(`roundFile`));
 const seaCon = /** @type { HTMLDivElement } */ (document.getElementById(`searchContent`));
 const convert = /** @type { HTMLButtonElement } */ (document.getElementById(`convert`));
+const mycanvas = /** @type { HTMLCanvasElement } */ (document.createElement(`canvas`));
+const maxSize = /** @type { HTMLInputElement } */ (document.getElementById(`maxSize`));
 const display = /** @type { HTMLDivElement } */ (document.getElementById(`display`));
 const modeDivs = /** @type { HTMLCollectionOf<HTMLDivElement> } */ (display.children);
 const tool = /** @type { HTMLParagraphElement } */ (document.getElementById(`tool`));
 const info = /** @type { HTMLParagraphElement } */ (document.getElementById(`info`));
-const sInp = /** @type { HTMLInputElement } */ (document.getElementById(`sInp`));
-const nsg = /** @type { HTMLDivElement } */ (document.getElementById(`nsg`));
-const mycanvas = /** @type { HTMLCanvasElement } */ (document.createElement(`canvas`));
 const input = /** @type { HTMLInputElement } */ (document.getElementById(`input`));
 const video = /** @type { HTMLVideoElement } */ (document.createElement(`video`));
+const sInp = /** @type { HTMLInputElement } */ (document.getElementById(`sInp`));
 const ta = /** @type { HTMLTextAreaElement } */ (document.getElementById(`ta`));
-const maxSize = 75;
+const nsg = /** @type { HTMLDivElement } */ (document.getElementById(`nsg`));
 
 // 変数
 
@@ -89,14 +89,15 @@ const changeInput = () => {
     video.src = URL.createObjectURL(new Blob([input.files[0]], { type: `video/mp4` }));
     video.addEventListener(`loadeddata`, () => {
         if (video.videoHeight < video.videoWidth) {
-            mycanvas.width = maxSize;
-            mycanvas.height = video.videoHeight * maxSize / video.videoWidth;
+            mycanvas.width = maxSize.value;
+            mycanvas.height = video.videoHeight * maxSize.value / video.videoWidth;
         } else {
-            mycanvas.width = video.videoWidth * maxSize / video.videoHeight;
-            mycanvas.height = maxSize;
+            mycanvas.width = video.videoWidth * maxSize.value / video.videoHeight;
+            mycanvas.height = maxSize.value;
         }
         const ctx = /** @type { CanvasRenderingContext2D } */ (mycanvas.getContext(`2d`));
         let text = `${mycanvas.width}/${mycanvas.height}/`;
+        ta.value = `変換中...`;
         const func = () => {
             ctx.drawImage(video, 0, 0, mycanvas.width, mycanvas.height);
             const imageData = ctx.getImageData(0, 0, mycanvas.width, mycanvas.height).data;
