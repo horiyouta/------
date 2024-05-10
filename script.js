@@ -56,8 +56,8 @@ const searchResult = (word) => {
     const date = String(today.getDate());
     for (let i = 0; i < data.length; i++) {
         if (
-            word == `全て` || (word != `1年前` && data[i].title.includes(word)) ||
-            (word == `1年前` && data[i].history.shared.includes(`${today.getFullYear() - 1}-${month.slice(month.length - 2, month.length)}-${date.slice(date.length - 2, date.length)}`))
+            word == `全て` || (!word.endWith(`年前`) && data[i].title.includes(word)) ||
+            (word.endWith(`年前`) && data[i].history.shared.includes(`${today.getFullYear() - Number(word[0])}-${month.slice(month.length - 2, month.length)}-${date.slice(date.length - 2, date.length)}`))
         ) list.push(i);
     }
     while (0 < list.length) {
@@ -77,7 +77,7 @@ const convertRound = () => {
         const fileReader = new FileReader();
         fileReader.addEventListener(`load`, () => {
             const svg = document.createElement(`a`);
-            svg.href = URL.createObjectURL(new Blob([fileReader.result.replace(/(?<=stroke\-linejoin\=\").*?(?=\")/g, `round`)], {type: `svg/image`}));
+            svg.href = URL.createObjectURL(new Blob([fileReader.result.replace(/(?<=stroke\-linejoin\=\").*?(?=\")/g, `round`)], { type: `svg/image` }));
             svg.download = roundFile.files[0].name;
             svg.click();
         });
