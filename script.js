@@ -56,8 +56,8 @@ const searchResult = (word) => {
     const date = String(today.getDate());
     for (let i = 0; i < data.length; i++) {
         if (
-            word == `全て` || (!word.endWith(`年前`) && data[i].title.includes(word)) ||
-            (word.endWith(`年前`) && data[i].history.shared.includes(`${today.getFullYear() - Number(word[0])}-${month.slice(month.length - 2, month.length)}-${date.slice(date.length - 2, date.length)}`))
+            word == `全て` || (!word.endsWith(`年前`) && data[i].title.includes(word)) ||
+            (word.endsWith(`年前`) && data[i].history.shared.includes(`${today.getFullYear() - Number(word[0])}-${month.slice(month.length - 2, month.length)}-${date.slice(date.length - 2, date.length)}`))
         ) list.push(i);
     }
     while (0 < list.length) {
