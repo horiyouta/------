@@ -76,7 +76,7 @@ a:hover {
     background-color: white;
 }
 
-#display>div>div {
+#display>div>div:not(.songDiv) {
     margin: 10px auto;
     width: 800px;
 }
@@ -205,4 +205,29 @@ h2 {
     height: 100px;
     margin: 10px;
     resize: none;
+}
+
+div:has(.songDiv) {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    height: 100%;
+}
+
+.songDiv {
+    box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+    width: min(calc(100% - 40px), 800px);
+    border-radius: 20px;
+    text-align: center;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.songDiv>h2 {
+    text-align: center;
+    font-size: 30px;
+    width: 100%;
+}
+
+.songDiv>iframe {
+    margin: 10px;
 }

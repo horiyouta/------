@@ -2,6 +2,7 @@
 
 const topPage = /** @type { HTMLParagraphElement } */ (document.getElementById(`topPage`));
 const roundFile = /** @type { HTMLInputElement } */ (document.getElementById(`roundFile`));
+const mysongs = /** @type { HTMLParagraphElement } */ (document.getElementById(`mysongs`));
 const seaCon = /** @type { HTMLDivElement } */ (document.getElementById(`searchContent`));
 const convert = /** @type { HTMLButtonElement } */ (document.getElementById(`convert`));
 const mycanvas = /** @type { HTMLCanvasElement } */ (document.createElement(`canvas`));
@@ -18,7 +19,7 @@ const nsg = /** @type { HTMLDivElement } */ (document.getElementById(`nsg`));
 
 // 変数
 
-let mode = 0;
+let mode = 4;
 
 // 関数
 
@@ -121,5 +122,6 @@ nsg.addEventListener(`click`, () => { if (sInp.value != ``) searchResult(sInp.va
 topPage.addEventListener(`click`, () => { mode = 0 });
 tool.addEventListener(`click`, () => { mode = 2 });
 info.addEventListener(`click`, () => { mode = 3 });
+mysongs.addEventListener(`click`, () => { mode = 4 });
 convert.addEventListener(`click`, convertRound);
 input.addEventListener(`change`, changeInput);
