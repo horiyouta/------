@@ -289,7 +289,7 @@ const songs = [
         youtubeUrl: 'https://www.youtube.com/embed/W7If10Qm4zY?si=ZIekn1-Dt71xUn1p',
         instrumentalUrl: 'https://www.youtube.com/embed/nqslDe3iZPw',
         basedOn: '',
-        vocals: [true, false, false, false],
+        vocals: [true, true, false, false],
         comment: '「進歩とは自らの変化である」\n個人的にはお気に入りの曲の1つです。4つしか楽器を使っていないのに、他の曲に負けない。',
         lyrics: 'いつも通りの1日をただ繰り返す why did it happen?\n明日こそはと思っても変わらないから\n\n振り向いて見えてくる過去の自分\n時間だけ進んだ\n\n進んだ先同じ道作り上げたサイクルで\n広げるこのリサイクルできない気持ちあるから\n過ぎた昨日戻れない違う出会いが待ってる\n限界突破未来へと良くしていけるさあ行こう\n\nいつもと違う1日を始めて見たよ What will I doing?\n変われることは何がある？探してみよう\n\n前を見て少しずつ進むなら\n成長できるから\n\n新しいマイサイクル築いていく習慣を\n目の前の扉を開け考え方をリメイク\n昨日にはできなかったことができるようになる\nどこまでだって進歩する終わりはないから続くよ\n\nどこまでだって進歩する終わりはないから\n\n進んだ先同じ道作り上げたサイクルで\n広げるこのリサイクルできない気持ちあるから\n過ぎた昨日戻れない違う出会いが待ってる\n限界突破未来へと良くしていけるさあ行こう',
         bpm: '',
