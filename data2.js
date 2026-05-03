@@ -835,7 +835,7 @@ const songs = [
         youtubeUrl: 'https://www.youtube.com/embed/o7fsGamBP-M',
         instrumentalUrl: 'https://www.youtube.com/embed/CZxqyc0DMec',
         basedOn: 'while True:',
-        vocals: [false, false, true, true],
+        vocals: [false, true, false, true],
         comment: '',
         lyrics: 'ずっと終わらない　無条件な循環は\n今でも未完な　話のようだ\n\n既存の枠組み　囚われるアルゴリ　ズム\n記憶の空白　幻とソナタの彼方\n\nCtrl + C　コピーだけじゃない日々\n回る思考も　熱いメモリも　オーバーフロー\nKeyboardInterrupt　何を変え何を残す\nリファクタリング　次のチャンスへ　さあ行こう\n\nずっと終わらない　冗長な恒真式\n未だに盛んで　自明な言葉\n\n保存の法則　残される慣性力\n魅力と誘惑　憧れのあなたと最中\n\nCtrl + C　コピーだけじゃない日々\n回る思考も　熱いメモリも　オーバーフロー\nKeyboardInterrupt　何を変え何を残す\nリファクタリング　次のチャンスへ　さあ行こう\n\n変化しない幸せの状態\n変化を求めるメカニズム\nなんかじゃないこの意思は一体？\n鈍化を案じるリリシズム\n\nCtrl + C　コピーだけじゃない日々\n回る思考も　熱いメモリも　オーバーフロー\nKeyboardInterrupt　何を変え何を残す\nリファクタリング　次のチャンスへ　さあ行こう',
         bpm: '',
