@@ -345,7 +345,7 @@ function openSongDetail(idx, fromView = null) {
                     ${metaItems ? `<div class="song-detail-meta">${metaItems}</div>` : ''}
                 </div>
 
-                ${song.lyrics ? `<div class="w-72 flex-shrink-0">
+                ${song.lyrics ? `<div class="w-1/2 flex-shrink-0">
                     <h3 class="text-sm font-bold text-gray-500 mb-2">📝 歌詞</h3>
                     <div class="lyrics-box">${song.lyrics}</div>
                 </div>` : ''}
