@@ -1,233 +1,436 @@
+/* ===== Fonts ===== */
 * {
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    user-select: none;
-    cursor: default;
-    margin: 0;
+    font-family: 'Zen Kaku Gothic New', 'Outfit', sans-serif;
+    box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
     height: 100%;
     width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
 }
 
-#sidebar {
-    background-color: hsl(30, 100%, 65%);
-    height: 50px;
-    width: 100%;
-}
-
-#sidebar>div {
-    height: fit-content;
-    width: fit-content;
-    margin: 0 auto;
-    display: flex;
-}
-
-#sidebar p {
-    padding: 13px 15px 4px 15px;
-    width: fit-content;
-    font-weight: bold;
-    font-size: 13.6px;
-    line-height: 24px;
-    cursor: pointer;
-    color: white;
-}
-
-#sidebar p:hover {
-    background-color: hsl(30, 64%, 55%);
-}
-
-#sideIcon {
-    border: 2.5px solid white;
-    border-radius: 2.5px;
-    transition: 0.25s;
-    margin: 5px 15px;
-    cursor: pointer;
-    height: 35px;
-    width: 35px;
-}
-
-#sideIcon:hover {
-    transform: scale(1.1);
-}
-
-#display {
-    height: calc(100% - 50px);
-    overflow-y: scroll;
-    width: 100%;
-}
-
-#display::-webkit-scrollbar {
-    display: none;
-}
-
-a {
-    text-decoration: none;
-    font-weight: bold;
-    color: #4d97ff;
-}
-
-a:hover {
-    color: #4588e6ff;
-}
-
-#display>div {
-    background-color: white;
-}
-
-#display>div>div:not(.songDiv) {
-    margin: 10px auto;
-    width: 800px;
-}
-
-p {
-    color: rgb(87, 94, 117);
-    font-weight: 400;
-    font-size: 16px;
-}
-
-h2 {
-    color: rgb(87, 94, 117);
-}
-
-#display>div>p {
-    background-color: hsl(30, 60%, 60%);
-    text-align: center;
-    font-weight: bold;
-    font-size: 48px;
-    color: white;
-    height: 71.6px;
-    padding: 10px;
-    width: 100%;
-}
-
-#topProject {
-    border-radius: 10px;
-    object-fit: cover;
-    transition: 0.5s;
-    height: 334px;
-    width: 942px;
-}
-
-#dark {
-    background-color: rgba(0, 0, 0, 0.25);
-    border-radius: 10px;
-    position: absolute;
-    height: 334px;
-    width: 942px;
-    left: 0;
-    top: 0;
-}
-
-#icon {
-    border-radius: 5px;
-    position: relative;
-    height: 64px;
-    width: 64px;
-    top: -85px;
-    left: 20px;
-    z-index: 1;
-}
-
-#tpDiv {
-    position: relative;
-    height: 354px;
-}
-
-#search {
-    background-color: hsl(30, 76%, 59%);
-    border-radius: 5px;
-    width: 343.513px;
-    display: flex;
-    height: 40px;
-    margin: 5px;
-}
-
-#search>input {
-    background-color: rgba(0, 0, 0, 0);
-    font-size: 13.6px;
-    color: white;
-    margin: 10px 0;
-    border: 0;
-}
-
-#search>input::placeholder {
-    color: white;
-}
-
-#search>input:focus-visible {
-    outline: 0;
-    border: 0;
-}
-
-#nsg {
-    background-image: url(https://scratch.mit.edu/images/nav-search-glass.png);
+/* ===== Background ===== */
+.custom-bg {
+    background-image: url('./data/bg.png');
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
-    background-size: 14px 14px;
-    background-position: 50%;
-    height: 40px;
-    width: 40px;
+    background-attachment: fixed;
 }
 
-#searchContent {
-    grid-template-columns: repeat(4, 1fr);
-    display: grid;
-    gap: 10px;
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.35); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(249, 115, 22, 0.6); }
+
+/* ===== Glass Morphism ===== */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-top: 1px solid rgba(255, 255, 255, 0.75);
+    border-left: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
-.content {
-    border: 2px solid silver;
-    background-color: white;
+.glass-panel-light {
+    background: rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.4);
+}
+
+.glass-item {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-top: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.7);
+    border-radius: 1.4rem;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.glass-item:hover {
+    transform: translateY(-2px) scale(1.01);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+/* ===== Nav buttons ===== */
+.nav-btn {
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(80, 60, 40, 0.85);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.nav-btn:hover {
+    background: rgba(255,255,255,0.5);
+    color: #c2490a;
+}
+.nav-btn.active {
+    background: rgba(255,255,255,0.7);
+    color: #ea6c15;
+    box-shadow: 0 2px 8px rgba(234,108,21,0.2);
+}
+
+/* ===== Sub nav ===== */
+.sub-nav-btn {
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(80,60,40,0.7);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.sub-nav-btn:hover { background: rgba(255,255,255,0.45); }
+.sub-nav-btn.active { background: rgba(255,255,255,0.65); color: #ea6c15; }
+
+/* ===== Tool button ===== */
+.tool-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #f97316, #fb923c);
+    color: white;
+    padding: 7px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 3px 12px rgba(249,115,22,0.35);
+    text-decoration: none;
+}
+.tool-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 18px rgba(249,115,22,0.45);
+}
+
+/* ===== Link card ===== */
+.link-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.link-card:hover {
+    background: rgba(255,255,255,0.85);
+    color: #ea6c15;
+    transform: translateY(-1px);
+}
+
+/* ===== Calendar ===== */
+.cal-nav-btn {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.6);
+    font-size: 18px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+}
+.cal-nav-btn:hover { background: rgba(255,255,255,0.85); color: #ea6c15; }
+
+.cal-dow {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #aaa;
+    padding: 2px 0;
+}
+
+.cal-cell {
+    min-height: 44px;
+    height: auto;        /* Fix #6: 内容に応じて縦幅が伸びる */
+    border-radius: 10px;
+    padding: 4px 4px 5px;
+    font-size: 11px;
+    transition: background 0.2s;
+    position: relative;
+}
+.cal-cell.today { background: rgba(249,115,22,0.12); }
+.cal-cell.other-month { opacity: 0.35; }
+
+.cal-day-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+.cal-day-num.sunday { color: #f87171; }
+.cal-day-num.saturday { color: #60a5fa; }
+
+.cal-event {
+    font-size: 9.5px;
+    background: rgba(249,115,22,0.18);
+    border: 1px solid rgba(249,115,22,0.35);
     border-radius: 5px;
-    height: 204px;
-    width: 220px;
-}
-
-.content>img {
-    border-radius: 5px;
-    height: 153px;
-    width: 204px;
-    margin: 8px;
-}
-
-.content>a {
-    text-overflow: ellipsis;
+    padding: 1px 4px;
+    color: #c2550a;
+    margin-bottom: 1px;
+    cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     display: block;
-    margin: 0 8px;
-    width: 204px;
+    transition: background 0.15s;
+}
+.cal-event.anniversary {
+    background: rgba(168,85,247,0.15);
+    border-color: rgba(168,85,247,0.3);
+    color: #7c3aed;
+}
+.cal-event:hover { background: rgba(249,115,22,0.3); }
+
+/* ===== Song list item ===== */
+.song-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.45);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.song-list-item:hover {
+    background: rgba(255,255,255,0.8);
+    transform: translateX(3px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
 }
 
-#ta {
-    width: calc(100% - 20px);
-    height: 100px;
-    margin: 10px;
-    resize: none;
+/* ===== Song card (search result) ===== */
+.song-card {
+    background: rgba(255,255,255,0.52);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.65);
+    border-radius: 18px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.2,0.8,0.2,1);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+}
+.song-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    background: rgba(255,255,255,0.82);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
 }
 
-div:has(.songDiv) {
-    overflow-y: scroll;
-    overflow-x: hidden;
-    height: 100%;
+/* ===== Vocal filter button ===== */
+.vocal-filter-btn {
+    padding: 2px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.2s;
+    opacity: 0.4;
+    filter: grayscale(70%);
+}
+.vocal-filter-btn.active {
+    border-color: #f97316;
+    opacity: 1;
+    filter: none;
+    box-shadow: 0 0 0 2px rgba(249,115,22,0.25);
 }
 
-.songDiv {
-    box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
-    width: min(calc(100% - 40px), 800px);
-    border-radius: 20px;
+/* ===== Match toggle ===== */
+.match-btn {
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    background: rgba(255,255,255,0.3);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.match-btn.active {
+    background: rgba(255,255,255,0.85);
+    color: #ea6c15;
+}
+
+/* ===== Back button ===== */
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.65);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #777;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.back-btn:hover {
+    background: rgba(255,255,255,0.85);
+    color: #ea6c15;
+}
+
+/* ===== Vocal icon button ===== */
+.vocal-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px 3px 3px;
+    background: rgba(255,255,255,0.45);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
+    color: #666;
+    font-weight: 600;
+}
+.vocal-icon-btn:hover {
+    background: rgba(255,255,255,0.85);
+    color: #ea6c15;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+}
+
+/* ===== Song detail ===== */
+.song-detail-card {
+    background: rgba(255,255,255,0.52);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.65);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+}
+
+.song-detail-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 16px 0;
+}
+.song-meta-item {
+    background: rgba(255,255,255,0.45);
+    border-radius: 12px;
+    padding: 8px 12px;
     text-align: center;
-    margin: 20px auto;
-    padding: 20px;
+}
+.song-meta-label { font-size: 10px; color: #aaa; font-weight: 600; }
+.song-meta-value { font-size: 15px; color: #555; font-weight: 700; margin-top: 2px; }
+
+.lyrics-box {
+    background: rgba(255,255,255,0.35);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 16px;
+    padding: 16px;
+    font-size: 14px;
+    color: #555;
+    line-height: 2;
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow-y: auto;
 }
 
-.songDiv>h2 {
-    text-align: center;
-    font-size: 30px;
-    width: 100%;
+/* ===== Work search cards ===== */
+.work-card {
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.65);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.2,0.8,0.2,1);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+}
+.work-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    background: rgba(255,255,255,0.82);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+}
+.work-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+.work-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #555;
+    padding: 8px 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.songDiv>iframe {
-    margin: 10px;
+/* ===== Display scroll ===== */
+#display {
+    overflow-y: auto;
+}
+#display > div {
+    min-height: calc(100vh - 56px);
+}
+
+/* ===== Toggle group ===== */
+.toggle-group {
+    display: flex;
+    background: rgba(255,255,255,0.3);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.5);
+}
+.toggle-btn {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.toggle-btn.active {
+    background: rgba(255,255,255,0.8);
+    color: #ea6c15;
+}
+
+/* Anniversary badge */
+.badge-release {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 99px;
+    background: rgba(249,115,22,0.15);
+    color: #c2550a;
+    font-weight: 700;
+    border: 1px solid rgba(249,115,22,0.3);
+}
+.badge-anniv {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 99px;
+    background: rgba(168,85,247,0.12);
+    color: #7c3aed;
+    font-weight: 700;
+    border: 1px solid rgba(168,85,247,0.25);
 }

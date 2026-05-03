@@ -1,190 +1,243 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>horiyouta 最終更新 2024/12/30</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>horiyouta</title>
     <link rel="icon" href="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
 </head>
+<body class="custom-bg min-h-screen overflow-hidden">
 
-<body>
-    <div id="sidebar">
-        <div>
-            <a href="https://scratch.mit.edu/users/horiyouta/" target="_blank">
-                <img src="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png" alt="icon" id="sideIcon">
+    <!-- Sidebar -->
+    <nav id="sidebar" class="glass-panel fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center px-4 gap-2">
+        <div class="flex items-center gap-2">
+            <a href="https://scratch.mit.edu/users/horiyouta/" target="_blank" class="flex-shrink-0">
+                <img src="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png" alt="icon" class="w-9 h-9 rounded-xl border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer shadow-md">
             </a>
-            <p id="topPage">トップページ</p>
-            <p id="info">最新情報</p>
-            <p id="tool">便利ツール</p>
-            <p id="mysongs">自作曲集</p>
-            <div id="search">
-                <div id="nsg"></div>
-                <input type="text" placeholder="検索" id="sInp">
+            <div class="flex gap-1">
+                <button class="nav-btn" data-mode="0">トップページ</button>
+                <button class="nav-btn" data-mode="1">便利ツール</button>
+                <button class="nav-btn" data-mode="2">自作曲集</button>
+                <button class="nav-btn" data-mode="3">作品検索</button>
+            </div>
+            <!-- Search for works -->
+            <div class="search-bar flex items-center gap-1 bg-white/40 rounded-xl px-3 h-9 border border-white/60 backdrop-blur-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input id="sInp" type="text" placeholder="作品検索..." class="bg-transparent text-gray-700 placeholder-gray-500 text-sm w-32 outline-none">
             </div>
         </div>
-    </div>
-    <div id="display">
-        <div>
-            <p>トップページ</p>
-            <div>
-                <div id="tpDiv">
-                    <img src="./data/topProject.png" alt="img" id="topProject"><br>
-                    <img src="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png" alt="icon" id="icon">
-                    <a href="https://scratch.mit.edu/projects/901021560/" target="_blank">
-                        <div id="dark"></div>
+    </nav>
+
+    <!-- Main display -->
+    <div id="display" class="pt-14 h-screen overflow-y-auto">
+
+        <!-- Mode 0: Top Page -->
+        <div id="mode-0" class="min-h-full p-6">
+            <div class="max-w-3xl mx-auto space-y-5">
+                <!-- Hero -->
+                <div class="glass-panel rounded-3xl overflow-hidden relative">
+                    <div class="h-52 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-br from-orange-300/40 via-pink-300/30 to-purple-300/40"></div>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div class="text-center">
+                                <img src="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png" alt="icon" class="w-20 h-20 rounded-2xl border-4 border-white/70 shadow-xl mx-auto mb-3">
+                                <h1 class="text-3xl font-bold text-white drop-shadow-lg tracking-wide">horiyouta</h1>
+                                <p class="text-white/80 text-sm mt-1">音楽 / プログラミング / クリエイター</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bio -->
+                <div class="glass-item p-5">
+                    <h2 class="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span class="text-2xl">👋</span> はじめまして
+                    </h2>
+                    <p class="text-gray-600 leading-relaxed text-sm">
+                        コンにちは、horiyoutaです！<br>
+                        Scratchが大好きで毎日開いています。<br>
+                        AI・3Dエンジン・物理シミュレータ・オンラインゲームなどを作ることができます。<br>
+                        Minecraftが好きでMODを作っています。今まで100個以上のMODを作りました。
+                    </p>
+                </div>
+
+                <!-- Links -->
+                <div class="glass-item p-5">
+                    <h2 class="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span class="text-2xl">🔗</span> リンク
+                    </h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <a href="https://scratch.mit.edu/users/horiyouta/" target="_blank" class="link-card">
+                            <span class="text-orange-500">🐱</span> horiyouta - Scratch
+                        </a>
+                        <a href="https://scratch.mit.edu/users/horiyouta-sub-/" target="_blank" class="link-card">
+                            <span class="text-orange-400">🐱</span> horiyouta-sub- - Scratch
+                        </a>
+                        <a href="https://scratch.mit.edu/users/horiyouta-sos-/" target="_blank" class="link-card">
+                            <span class="text-orange-300">🐱</span> horiyouta-sos- - Scratch
+                        </a>
+                        <a href="https://www.youtube.com/@horiyouta/about" target="_blank" class="link-card">
+                            <span class="text-red-500">▶</span> horiyouta - YouTube
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Featured project -->
+                <div class="glass-item p-5">
+                    <h2 class="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span class="text-2xl">⭐</span> 注目作品
+                    </h2>
+                    <a href="https://scratch.mit.edu/projects/901021560/" target="_blank" class="block rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform">
+                        <img src="https://uploads.scratch.mit.edu/get_image/project/901021560_408x306.png" alt="top project" class="w-full object-cover rounded-2xl" onerror="this.style.display='none'">
                     </a>
                 </div>
-                <a href="https://scratch.mit.edu/users/horiyouta/" target="_blank">horiyouta - scratch</a><br>
-                <a href="https://scratch.mit.edu/users/horiyouta-sub-/" target="_blank">horiyouta-sub- - scratch</a><br>
-                <a href="https://scratch.mit.edu/users/horiyouta-sos-/" target="_blank">horiyouta-sos- - scratch</a><br>
-                <a href="https://www.youtube.com/@horiyouta/about" target="_blank">horiyouta - YouTube</a><br>
-                <br>
-                <p>
-                    コンにちは horiyoutaです！<br>
-                    scratch が大好きで毎日開いています<br>
-                    AI 3Dエンジン 物理シミュレータ オンラインゲーム などを作ることができます<br>
-                    Minecraft が好きで MOD を作っています<br>
-                    今まで100個以上のMODを作りました<br>
-                </p>
             </div>
         </div>
-        <div>
-            <p>検索</p>
-            <div id="searchContent">
 
+        <!-- Mode 1: Tools -->
+        <div id="mode-1" class="min-h-full p-6 hidden">
+            <div class="max-w-2xl mx-auto space-y-5">
+                <div class="glass-panel rounded-3xl p-6">
+                    <h1 class="text-2xl font-bold text-gray-700 mb-1 flex items-center gap-2"><span>🔧</span> 便利ツール</h1>
+                    <p class="text-gray-500 text-sm">Scratchや動画制作に便利なツール集</p>
+                </div>
+
+                <div class="glass-item p-5 space-y-2">
+                    <h2 class="text-lg font-bold text-gray-700 flex items-center gap-2"><span>🔔</span> 通知メーカー</h2>
+                    <p class="text-gray-500 text-sm">※Google Chrome で開いてください<br>下のリンクをブックマークリストにドラッグして追加し、Scratchでブックマークを開いてください。</p>
+                    <a href='javascript:!function(){const s=document.getElementsByClassName("message-count")[0];[...s.classList].includes("show")||s.classList.add("show"),s.textContent=prompt("%E9%80%9A%E7%9F%A5%E3%81%AB%E8%A1%A8%E7%A4%BA%E3%81%99%E3%82%8B%E5%86%85%E5%AE%B9%E3%82%92%E5%85%A5%E5%8A%9B")}();void(0);' class="tool-btn inline-block">通知メーカー</a>
+                </div>
+
+                <div class="glass-item p-5 space-y-2">
+                    <h2 class="text-lg font-bold text-gray-700 flex items-center gap-2"><span>✏️</span> 角丸変換</h2>
+                    <p class="text-gray-500 text-sm">Scratchのベクターコスチューム内のテキストの角を丸くします</p>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <input type="file" accept=".svg" id="roundFile" class="text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-orange-100 file:text-orange-600 file:text-sm hover:file:bg-orange-200">
+                        <button id="convert" class="tool-btn">変換してダウンロード</button>
+                    </div>
+                </div>
+
+                <div class="glass-item p-5 space-y-2">
+                    <h2 class="text-lg font-bold text-gray-700 flex items-center gap-2"><span>🎬</span> ビデオプレイヤー</h2>
+                    <p class="text-gray-500 text-sm">動画を<a href="https://scratch.mit.edu/projects/957445487/" target="_blank" class="text-orange-500 hover:text-orange-600">こちら</a>で表示する用のデータに変換します。長い動画は重くなるので数秒の動画にしてください。</p>
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm text-gray-600">画質</label>
+                        <input type="number" id="maxSize" value="75" min="10" max="100" class="w-16 px-2 py-1 rounded-lg border border-gray-200 text-sm text-center">
+                        <span class="text-sm text-gray-600">px</span>
+                    </div>
+                    <input type="file" accept=".mp4" id="input" class="text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-orange-100 file:text-orange-600 file:text-sm hover:file:bg-orange-200">
+                    <textarea id="ta" class="w-full h-24 rounded-xl border border-gray-200 p-3 text-sm resize-none bg-white/50" placeholder="ここに変換結果が表示されます..."></textarea>
+                </div>
             </div>
         </div>
-        <div>
-            <p>便利ツール</p>
-            <div>
-                <h2>通知メーカー</h2>
-                <p>
-                    ※Google Chrome で開いて下さい<br>
-                    下のリンクをブックマークリストにドラッグして追加し、Scratchでブックマークを開いてください<br>
-                    画面上部に質問が表示されるので文字や数字を入れると通知の内容が変わります
-                </p>
-                <a
-                    href='javascript:!function(){const s=document.getElementsByClassName("message-count")[0];[...s.classList].includes("show")||s.classList.add("show"),s.textContent=prompt("%E9%80%9A%E7%9F%A5%E3%81%AB%E8%A1%A8%E7%A4%BA%E3%81%99%E3%82%8B%E5%86%85%E5%AE%B9%E3%82%92%E5%85%A5%E5%8A%9B")}();void(0);'>通知メーカー</a><br>
-                <br>
-                <h2>角丸変換</h2>
-                <p>
-                    Scratch のベクターコスチューム内のテキストの角を丸くします
-                </p>
-                <input type="file" accept=".svg" id="roundFile"><br>
-                <button id="convert">変換してダウンロード</button><br>
-                <br>
-                <h2>ビデオプレイヤー</h2>
-                <p>
-                    動画を<a href="https://scratch.mit.edu/projects/957445487/" target="_blank">こちら</a>で表示する用のデータに変換します<br>
-                    長い動画は重くなるので数秒の動画にしてください<br>
-                    動画の変換には少し時間がかかります
-                </p>
-                <p>画質<input type="number" name="maxSize" id="maxSize" value="75" min="10" max="100">px</p>
-                <input type="file" accept=".mp4" name="input" id="input"><br>
-                <textarea name="ta" id="ta" cols="30" rows="10"></textarea>
+
+        <!-- Mode 2: My Songs -->
+        <div id="mode-2" class="min-h-full hidden">
+            <!-- Songs sub-navigation -->
+            <div id="songs-nav" class="glass-panel-light border-b border-white/30 px-4 py-2 flex items-center gap-3 flex-wrap sticky top-0 z-40 backdrop-blur-xl">
+                <button id="songs-home-btn" class="sub-nav-btn active" onclick="showSongView('home')">
+                    🎵 曲一覧
+                </button>
+                <div class="w-px h-5 bg-white/30"></div>
+                <!-- Search bar -->
+                <input id="songSearch" type="text" placeholder="検索ワード..." class="bg-white/30 rounded-lg px-3 py-1 text-sm text-gray-700 placeholder-gray-400 border border-white/50 outline-none w-36 focus:w-48 transition-all">
+                <!-- Checkboxes -->
+                <label class="flex items-center gap-1 text-sm text-gray-600 cursor-pointer select-none">
+                    <input type="checkbox" id="cbTitle" checked class="accent-orange-400"> 曲名
+                </label>
+                <label class="flex items-center gap-1 text-sm text-gray-600 cursor-pointer select-none">
+                    <input type="checkbox" id="cbLyrics" checked class="accent-orange-400"> 歌詞
+                </label>
+                <div class="w-px h-5 bg-white/30"></div>
+                <!-- Vocal filters -->
+                <div class="flex items-center gap-1">
+                    <span class="text-xs text-gray-500">ボーカル:</span>
+                    <div id="vocalFilters" class="flex gap-1">
+                        <button class="vocal-filter-btn active" data-vocal="0" title="ティラミス">
+                            <img src="./data/1.png" alt="ティラミス" class="w-6 h-6 rounded-full object-cover">
+                        </button>
+                        <button class="vocal-filter-btn active" data-vocal="1" title="タルト">
+                            <img src="./data/2.png" alt="タルト" class="w-6 h-6 rounded-full object-cover">
+                        </button>
+                        <button class="vocal-filter-btn active" data-vocal="2" title="よもぎ">
+                            <img src="./data/3.png" alt="よもぎ" class="w-6 h-6 rounded-full object-cover">
+                        </button>
+                        <button class="vocal-filter-btn active" data-vocal="3" title="だいふく">
+                            <img src="./data/4.png" alt="だいふく" class="w-6 h-6 rounded-full object-cover">
+                        </button>
+                    </div>
+                </div>
+                <!-- Match mode toggle -->
+                <div class="match-toggle flex rounded-lg overflow-hidden border border-white/50 text-xs">
+                    <button class="match-btn active" data-match="partial">部分一致</button>
+                    <button class="match-btn" data-match="exact">完全一致</button>
+                </div>
+                <button id="songSearchBtn" class="tool-btn text-xs py-1 px-3">検索</button>
+            </div>
+
+            <!-- Song home: calendar + list -->
+            <div id="song-view-home" class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <!-- Calendar -->
+                <div class="glass-panel rounded-3xl p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <button id="calPrev" class="cal-nav-btn">‹</button>
+                        <h2 id="calTitle" class="text-base font-bold text-gray-700"></h2>
+                        <button id="calNext" class="cal-nav-btn">›</button>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 mb-2">
+                        <div class="cal-dow">日</div><div class="cal-dow">月</div><div class="cal-dow">火</div>
+                        <div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div><div class="cal-dow">土</div>
+                    </div>
+                    <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+                </div>
+
+                <!-- Song list -->
+                <div class="glass-panel rounded-3xl p-5">
+                    <h2 class="text-base font-bold text-gray-700 mb-3">🎵 全曲リスト</h2>
+                    <div id="songList" class="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1"></div>
+                </div>
+            </div>
+
+            <!-- Song detail view -->
+            <div id="song-view-detail" class="hidden p-5">
+                <button class="back-btn mb-4" onclick="showSongView('home')">← 一覧に戻る</button>
+                <div id="songDetailContent" class="max-w-2xl mx-auto"></div>
+            </div>
+
+            <!-- Search results view -->
+            <div id="song-view-results" class="hidden p-5">
+                <div class="flex items-center gap-3 mb-4">
+                    <button class="back-btn" onclick="showSongView('home')">← 一覧に戻る</button>
+                    <span id="resultCount" class="text-sm text-gray-500"></span>
+                </div>
+                <div id="songResults" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+            </div>
+
+            <!-- Vocal detail view -->
+            <div id="song-view-vocal" class="hidden p-5">
+                <button class="back-btn mb-4" id="vocalBackBtn">← 戻る</button>
+                <div id="vocalDetailContent" class="max-w-2xl mx-auto"></div>
             </div>
         </div>
-        <div>
-            <p>最新情報</p>
-            <div>
-                <a class="twitter-timeline" href="https://twitter.com/horiyouta?ref_src=twsrc%5Etfw">Tweets by
-                    horiyouta</a>
-                <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+        <!-- Mode 3: Search (works) -->
+        <div id="mode-3" class="min-h-full p-6 hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="glass-panel rounded-3xl p-6 mb-5">
+                    <h1 class="text-2xl font-bold text-gray-700 mb-1 flex items-center gap-2"><span>🔍</span> 作品検索</h1>
+                    <p class="text-gray-500 text-sm">Scratchの作品をビュー数順で表示します</p>
+                </div>
+                <div id="searchContent" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"></div>
             </div>
         </div>
-        <div>
-            <p>自作曲集</p>
-            <div class="songDiv">
-                <h2>月下</h2>
-                <p>
-                    曲構成などを考えて作った初めての曲です<br>
-                    ソミドラ ( GECA ) から始まるので「月下」という名前になりました。
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/KD0cKlT9xVo?si=XzuAzSlDU7kae86Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/月下.mp3" download="月下.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>nostalgie</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/vHyaFPN8_4w?si=Hmsslv0Eq71h8rZq" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/nostalgie.mp3" download="nostalgie.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>夕空</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/DJX6sND6MYU?si=ci84hCNGXXmkEqjM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/夕空.mp3" download="夕空.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>時雨</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/rz7EDExmefA?si=i2PUIV3TJkp_zQy8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/時雨.mp3" download="時雨.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>下萌</h2>
-                <p>
-                    作詞を始めてからはカノン進行をよく使うようになりましたが、<br>
-                    始めてカノン進行を使った曲はこの曲だったりします
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/ni_oPfe7yCs?si=LlIx_DgP190zaA5O" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/下萌.mp3" download="下萌.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>SPLASH</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/NuhCkYAmBCA?si=ufwYU_6ViomQgjkG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/SPLASH.mp3" download="SPLASH.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>紫陽花</h2>
-                <p>
-                    当時は 6/8 拍子だと思っていましたが、<br>
-                    今思うとスウィングの 4/4 拍子です
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/kArireXB8xI?si=2h2IN2dt-uQQnU1E" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/紫陽花.mp3" download="紫陽花.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>アキザクラ</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/v6Sx-GP8Lho?si=b0qT_U7L-yrkE-Vh" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/アキザクラ.mp3" download="アキザクラ.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>木枯らし</h2>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/TyA_O_8bosQ?si=gahD4FhSHWQr2FEQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/木枯らし.mp3" download="木枯らし.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>autumn evening</h2>
-                <p>
-                    和訳すると「秋の夕暮れ」です
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/Lq8TiPkN-54?si=nVtnA6Z2zkA5NfkT" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/autumn evening.mp3" download="autumn evening.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>三日月</h2>
-                <p>
-                    初めての変拍子曲です<br>
-                    三日月という名前を付けた理由は以下の3つです<br>
-                    ・三日月の綺麗な季節に作ったから<br>
-                    ・3拍子だから<br>
-                    ・変拍子で1拍欠けているところが月が欠けているようだから
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/RysUYnBEHCw?si=oljfMIBBG7RnLbUY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/三日月.mp3" download="三日月.mp3">音源ダウンロード</a>
-            </div>
-            <div class="songDiv">
-                <h2>bloom snow</h2>
-                <p>
-                    後によく使うようになるコンファメーション進行というコード進行を初めて使った曲です
-                </p>
-                <iframe width="560" height="315" src="https://www.youtube.com/embed/M3wXkBc6sAY?si=L4iGQRoARTloeoLg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                <br><a href="./songs/bloom snow.mp3" download="bloom snow.mp3">音源ダウンロード</a>
-            </div>
-        </div>
+
     </div>
+
     <script src="./data.js"></script>
+    <script src="./data2.js"></script>
     <script src="./script.js"></script>
 </body>
-
 </html>
