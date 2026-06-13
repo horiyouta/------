@@ -856,4 +856,17 @@ const songs = [
         key: '',
         releaseDate: '2026-05-02',
     },
+    {
+        title: 'コスモ＊ホログラフィー',
+        youtubeUrl: 'https://www.youtube.com/embed/lyj4gR1LaKU',
+        instrumentalUrl: 'https://www.youtube.com/embed/NZw_PDF6QmY',
+        basedOn: '',
+        vocals: [false, false, true, false],
+        comment: '',
+        lyrics: '宇宙（そら）に刻んだ\n夢の影　きっと叶えて見せる\n今はまだ知らぬ\n「今日」を求め明日へ\n\nきらきらと儚く輝いた\n誰かの幸せはどうなるの\n大切な何かへの涙も\n今は忘れられた泡のよう\n\nそんなことは信じたくない\n必ず見つけるから\n諦めないで　見捨てないで\n歩み続けて　ずっと\n\n未来の　その先へ\n光も届かぬ地へ\n描かれた　希望はいつまででも\n消えはしない\n\n宇宙（そら）に刻んだ\n夢の影　きっと叶えて見せる\n今はまだ知らぬ\n「今日」を求め明日へ\n\nふわふわと漂い残された\n誰かの切望はどうなるの\n憧れた場所への志\n中身のない空箱みたいだ\n\nそんなことで止まりはしない\nいつか辿り着くから\n手放さないで　忘れないで\n無駄じゃないから　何も\n\n未来の　その先へ\n光も届かぬ地へ\n描かれた　希望はいつまででも\n消えはしない\n\n宇宙（そら）に刻んだ\n夢の影　きっと叶えて見せる\n今はまだ知らぬ\n「今日」を求め明日へ',
+        bpm: '',
+        timeSignature: '',
+        key: '',
+        releaseDate: '2026-06-11',
+    },
 ];
