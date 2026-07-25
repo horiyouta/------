@@ -869,4 +869,17 @@ const songs = [
         key: '',
         releaseDate: '2026-06-11',
     },
+    {
+        title: 'ありのままごっこ',
+        youtubeUrl: 'https://www.youtube.com/embed/zVe_f1jsxFI',
+        instrumentalUrl: 'https://www.youtube.com/embed/sD5t8vHulI0',
+        basedOn: '',
+        vocals: [true, false, false, false],
+        comment: '',
+        lyrics: 'ナチュラルな笑顔を見せて\n鏡の中の誰かが呼ぶ\n炭酸の抜けたラムネも\n終わりかけを教えてくれない\n\n本物とか　イメージとか\n探し出した日から数え\n何回目の夏に出会うのでしょう\nでも好きだから\n\n演じていないふりを演じて\n板についたものそれは素顔だった\n私の役者は私なのだと\n消えることないと風が言った\n\n自然体なセリフを読み\n慣れ親しんだ口癖さえ\nどこからが本音なのかと\nセミと一緒に考えてみる\n\n役柄とか　背伸びだとか\n誰かが決めただけでしょう\n何番目の自分が素なのかなど\n知らないけれど\n\n嘘などないと嘘をついても\nどういう気持ちも信じてみたかった\nどんな私も私なのだと\nこっそりと波はささやいてた\n\n演じていないふりを演じて\n板についたものそれは素顔だった\n私の役者は私なのだと\n消えることないと風が言った',
+        bpm: '',
+        timeSignature: '',
+        key: '',
+        releaseDate: '2026-07-25',
+    },
 ];
