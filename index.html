@@ -3,13 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>horiyouta 最終更新 2026/07/25</title>
+    <title>horiyouta 最終更新 2026/08/02</title>
     <link rel="icon" href="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="image" href="./data/bg.jpg" fetchpriority="high">
     <link rel="stylesheet" href="./style.css">
 </head>
 <body class="custom-bg min-h-screen overflow-hidden">
+
+    <!-- 液体背景（マウス追従の流れ・クリック波紋・浮遊ガラスをここに描画） -->
+    <canvas id="liquid" aria-hidden="true"></canvas>
 
     <!-- Sidebar -->
     <nav id="sidebar" class="glass-panel fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center px-4 gap-2">
@@ -238,6 +242,7 @@
 
     <script src="./data.js"></script>
     <script src="./data2.js"></script>
+    <script src="./liquid-bg.js"></script>
     <script src="./script.js"></script>
 </body>
 </html>

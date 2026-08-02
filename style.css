@@ -12,13 +12,68 @@ html, body {
     overflow: hidden;
 }
 
-/* ===== Background ===== */
+/* ===== Background (WebGL 読み込み前 / 非対応時のフォールバック) ===== */
 .custom-bg {
     background-image: url('./data/bg.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
+}
+
+/* ===== Liquid background canvas =====
+   マウス追従の液体アニメーション・クリック波紋・浮遊ガラスの描画先。
+   常に body の一番下（z-index:-1）に固定し、フォールバック画像の上に
+   フェードインする。 */
+#liquid {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    touch-action: none;
+    pointer-events: none; /* クリック/ドラッグは window イベントで拾うので、下の要素の操作を邪魔しない */
+}
+#liquid.ready { opacity: 1; }
+
+/* 浮遊要素（ビート板）共通設定：JS が transform で位置・傾きを動かす */
+[data-float] {
+    will-change: transform;
+    transform-origin: 50% 50%;
+    backface-visibility: hidden;
+}
+
+/* WebGL 側で本物のガラスとして再描画されている間は、CSS 側の
+   ガラス演出（背景・枠線・影・ぼかし）を完全に消して二重描画を防ぐ */
+body.gl-glass [data-glass] {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* ===== 誤選択防止 =====
+   背景で液体を触って遊んでいるときに、周囲のテキストやアイコンが
+   ドラッグでハイライト選択されてしまう問題を防ぐ。
+   フォーム要素・歌詞など「実際にコピーしたい」部分だけ選択を許可する。 */
+html, body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+img, svg {
+    -webkit-user-drag: none;
+    user-drag: none;
+}
+input, textarea,
+.lyrics-box,
+.song-meta-value {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 /* ===== Scrollbar ===== */

@@ -7,6 +7,13 @@ const modes = [
     document.getElementById('mode-3'),
 ];
 
+// 液体背景の浮遊要素は #display のスクロール位置を追従できないと
+// 「波に浮いているのに画面上では固定されて見える」ズレが起きるため、
+// スクロールのたびに再計測させる。
+display.addEventListener('scroll', () => {
+    if (window.LiquidBG) window.LiquidBG.remeasure();
+}, { passive: true });
+
 // ===== Navigation =====
 let currentMode = 0;
 
@@ -19,6 +26,44 @@ function setMode(n) {
         btn.classList.toggle('active', Number(btn.dataset.mode) === n);
     });
     if (n === 2) renderSongHome();
+    updateLiquidFloatersForMode(n);
+}
+
+// ===== Liquid background: ビート板になるガラスパネルの選定 =====
+// 画面に今表示されているガラスパネルだけを [data-float][data-glass] に
+// 登録し直すことで、WebGL の浮遊要素スロット（有限）を無駄にしない。
+function setLiquidFloaters(selectors) {
+    document.querySelectorAll('[data-liquid-float]').forEach(el => {
+        el.removeAttribute('data-float');
+        el.removeAttribute('data-glass');
+        el.removeAttribute('data-liquid-float');
+        el.style.transform = '';
+    });
+    // トップバー(#sidebar)と曲検索バー(#songs-nav)は常に固定表示のため対象に含めない
+    const targets = [];
+    selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => targets.push(el));
+    });
+    Array.from(new Set(targets)).filter(Boolean).slice(0, 8).forEach(el => {
+        el.setAttribute('data-float', '');
+        el.setAttribute('data-glass', '');
+        el.setAttribute('data-liquid-float', '');
+    });
+    if (window.LiquidBG) window.LiquidBG.refresh();
+}
+
+function updateLiquidFloatersForMode(n) {
+    if (n === 0) setLiquidFloaters(['#mode-0 .glass-panel', '#mode-0 .glass-item']);
+    else if (n === 1) setLiquidFloaters(['#mode-1 .glass-panel', '#mode-1 .glass-item']);
+    else if (n === 2) updateLiquidFloatersForSongView('home');
+    else if (n === 3) setLiquidFloaters(['#mode-3 .glass-panel']);
+}
+
+function updateLiquidFloatersForSongView(view) {
+    if (view === 'home') setLiquidFloaters(['#song-view-home .glass-panel']);
+    else if (view === 'detail') setLiquidFloaters(['#song-view-detail .song-detail-card']);
+    else if (view === 'results') setLiquidFloaters([]);
+    else if (view === 'vocal') setLiquidFloaters(['#song-view-vocal .glass-panel', '#song-view-vocal .glass-item']);
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -128,6 +173,8 @@ function showSongView(view) {
     document.getElementById('song-view-detail').classList.toggle('hidden', view !== 'detail');
     document.getElementById('song-view-results').classList.toggle('hidden', view !== 'results');
     document.getElementById('song-view-vocal').classList.toggle('hidden', view !== 'vocal');
+
+    if (currentMode === 2) updateLiquidFloatersForSongView(view);
 }
 
 // ===== Song Search UI State =====
