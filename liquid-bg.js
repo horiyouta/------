@@ -20,6 +20,8 @@ window.LiquidBG = window.LiquidBG || {
   ripple: function () {},
   splat: function () {},
   dropAt: function () {},
+  getWaveState: function () { return null; },
+  onWave: function () {},
   setEnabled: function () {}
 };
 
@@ -38,12 +40,14 @@ window.LiquidBG = window.LiquidBG || {
     PRESSURE_ITER:    12,
 
     /* --- 流体 --- */
-    VEL_DISSIPATION:  0.55,
+    VEL_DISSIPATION:  0.60,       // BFECC導入で数値拡散が減った分、+0.05して体感の「収まり」を維持
     CURL:             5.0,
     FORCE:            5000.0,
     SPLAT_RADIUS:     0.00075,
     RIPPLE_RADIUS:    0.00022,
     RIPPLE_AMP:       0.0042,
+    ADVECT_BFECC:     true,       // 速度移流をBFECC(MacCormack系)に。渦・波のシャープさを長時間維持（高負荷時はfalseで従来の1次精度に自動フォールバック可）
+    PRESSURE_ITER_MIN: 6,         // 端末が重い時（downgrades発生時）でも最低限これだけは反復する
 
     /* --- 一滴（クリック） --- */
     DROP_RADIUS:      0.00055,
@@ -65,6 +69,7 @@ window.LiquidBG = window.LiquidBG || {
     SPECULAR:         0.55,      // 平面成分を差し引いた «増加分だけ» を加算
     SHININESS:        52.0,
     FRESNEL:          0.16,      // 加算（灰色 mix をやめたので彩度が落ちない）
+    WATER_ABSORB:     0.34,      // Beer-Lambert風の深み吸光。波の谷だけ暗く青緑へ沈む（平らなら寄与0）
     FOAM_OPACITY:     0.30,
     SHARPEN:          0.16,      // 縮小リサンプルで失われる解像感の回復（0 で無効）
     SATURATION:       1.06,      // 1.0 = 元画像どおり
@@ -186,6 +191,29 @@ window.LiquidBG = window.LiquidBG || {
     'void main(){',
     '  vec2 coord = vUv - uDt * texture2D(uVelocity, vUv).xy * uTexel;',
     '  gl_FragColor = texture2D(uSource, coord) / (1.0 + uDissipation * uDt);',
+    '}'
+  ].join('\n');
+
+  /* BFECC（Back and Forth Error Compensation and Correction）誤差補正パス。
+     F_ADVECT を dt→-dt で再利用して「往って戻る」ことで生じる誤差を
+     元の場に半分だけ足し戻し、さらに近傍4点のmin/maxでクランプする
+     （clamped MacCormack）。これにより1次精度Semi-Lagrangianの数値拡散を
+     大幅に抑えつつ、クランプにより発散・オーバーシュートは起きない。 */
+  var F_BFECC_CORRECT = PREC_F + [
+    'varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;',
+    'uniform sampler2D uSource;', // φ_n（補正前の元の場）
+    'uniform sampler2D uBack;',   // φ_hat_n（前方→後方と往復させた結果）
+    'void main(){',
+    '  vec2 phiN   = texture2D(uSource, vUv).xy;',
+    '  vec2 phiHat = texture2D(uBack, vUv).xy;',
+    '  vec2 corrected = phiN + 0.5 * (phiN - phiHat);',
+    '  vec2 L = texture2D(uSource, vL).xy;',
+    '  vec2 R = texture2D(uSource, vR).xy;',
+    '  vec2 T = texture2D(uSource, vT).xy;',
+    '  vec2 B = texture2D(uSource, vB).xy;',
+    '  vec2 mn = min(min(L, R), min(T, B)); mn = min(mn, phiN);',
+    '  vec2 mx = max(max(L, R), max(T, B)); mx = max(mx, phiN);',
+    '  gl_FragColor = vec4(clamp(corrected, mn, mx), 0.0, 1.0);',
     '}'
   ].join('\n');
 
@@ -332,7 +360,7 @@ window.LiquidBG = window.LiquidBG || {
     'uniform vec2 uCover; uniform vec2 uRes;',
     'uniform float uAspect, uRefract, uFlow, uNormalScale, uCaustic;',
     'uniform float uSpecular, uShininess, uFresnel, uFoamOpacity;',
-    'uniform float uSharpen, uSaturation, uBrightness, uFinal;',
+    'uniform float uSharpen, uSaturation, uBrightness, uFinal, uAbsorb;',
     '',
     'vec2 bgUv(vec2 uv){ return (uv - 0.5) * uCover + 0.5; }',
     '',
@@ -367,6 +395,13 @@ window.LiquidBG = window.LiquidBG || {
     '  float caustic = clamp(-lap * uCaustic, -0.24, 0.90);',
     '  col *= 1.0 + caustic;',
     '  col += vec3(0.80, 0.90, 1.00) * max(caustic, 0.0) * 0.13;',
+    '',
+    '  /* Beer-Lambert風の深み吸光：波の «谷» だけ赤成分から先に吸収されて',
+    '     青緑に沈む。hC>=0（平ら・山）では depth=0 になるので、',
+    '     水面が完全に平らな場合は元画像と厳密に一致する設計を崩さない。 */',
+    '  float depth = clamp(-hC, 0.0, 1.0);',
+    '  vec3 deepTint = vec3(0.58, 0.86, 0.93);',
+    '  col *= mix(vec3(1.0), deepTint, depth * uAbsorb);',
     '',
     '  /* 鏡面：平面時の値を差し引いて «増加分だけ» 加算 → 平らなら寄与 0 */',
     '  vec3 lightDir = normalize(vec3(-0.35, 0.55, 0.76));',
@@ -605,6 +640,7 @@ window.LiquidBG = window.LiquidBG || {
 
   var progCopy     = createProgram(F_COPY);
   var progAdvect   = createProgram(F_ADVECT);
+  var progBfecc    = createProgram(F_BFECC_CORRECT);
   var progDiv      = createProgram(F_DIVERGENCE);
   var progCurl     = createProgram(F_CURL);
   var progVort     = createProgram(F_VORTICITY);
@@ -621,6 +657,7 @@ window.LiquidBG = window.LiquidBG || {
 
   if (!progWater || !progRipple || !progAdvect) { disable(); return; }
   var glassOK = !!(progGlass && progProbe && progBlur && progDown);
+  var bfeccOK = !!progBfecc; /* コンパイル失敗した環境では自動的に通常の1次精度移流にフォールバック */
 
   /* ------------------------------------------------------------ ジオメトリ */
   var quad = gl.createBuffer();
@@ -710,6 +747,7 @@ window.LiquidBG = window.LiquidBG || {
 
   /* ------------------------------------------------------------- リサイズ */
   var velocity, pressure, divergence, curlFBO, ripple;
+  var bfeccA, bfeccB;
   var scene, blurA, blurB, blurC, probeFBO;
   var aspect = 1, cover = [1, 1];
   var quality = 1.0, downgrades = 0;
@@ -732,6 +770,9 @@ window.LiquidBG = window.LiquidBG || {
     divergence = halfFBO(sim.w, sim.h, gl.NEAREST);
     curlFBO    = halfFBO(sim.w, sim.h, gl.NEAREST);
     ripple     = doubleFBO(rip.w, rip.h, gl.LINEAR);
+    /* BFECC の往復推定用ワークバッファ（速度と同解像度、2枚で足りる） */
+    bfeccA     = halfFBO(sim.w, sim.h, gl.LINEAR);
+    bfeccB     = halfFBO(sim.w, sim.h, gl.LINEAR);
 
     if (glassOK) {
       scene = byteFBO(canvas.width, canvas.height, gl.LINEAR);
@@ -772,7 +813,11 @@ window.LiquidBG = window.LiquidBG || {
   function collectFloaters() {
     var list = document.querySelectorAll('[data-float]');
     floaters.length = 0;
-    for (var i = 0; i < list.length && i < MAXF; i++) {
+    /* MAXF のうち1枠は「音響センサー」としてポインタのプローブ専用に予約する
+       （liquid-audio.js が波の実際の速度・渦度を読むために使う）ので、
+       実際のビート板は MAXF-1 枚までとする。 */
+    var cap = MAXF - 1;
+    for (var i = 0; i < list.length && i < cap; i++) {
       floaters.push({
         el: list[i],
         glass: list[i].hasAttribute('data-glass'),
@@ -821,9 +866,30 @@ window.LiquidBG = window.LiquidBG || {
 
   function dec16(o) { return ((probeBuf[o] * 256 + probeBuf[o + 1]) / 65535) * 2 - 1; }
 
+  /* ------------------------------------------------- 音響用：波の実測状態 */
+  var waveState = null, waveCB = null;
+  function decodeWaveState() {
+    var o = (MAXF - 1) * 12;
+    var gx = dec16(o) * P_GRAD, gy = dec16(o + 2) * P_GRAD;
+    var vx = dec16(o + 4) * P_VEL, vy = dec16(o + 6) * P_VEL;
+    var h  = dec16(o + 8) * P_H;
+    var curl = dec16(o + 10) * P_CURL;
+    var speed = Math.sqrt(vx * vx + vy * vy);
+    var grad  = Math.sqrt(gx * gx + gy * gy);
+    var prev = waveState;
+    /* 軽くスムージング（フレーム間の量子化ノイズを均す。物理的な慣性は
+       シミュレーション自体が既に持っているので、ここは最小限でよい） */
+    var sm = prev ? 0.5 : 1.0;
+    waveState = {
+      vx: vx, vy: vy, speed: prev ? prev.speed + (speed - prev.speed) * sm : speed,
+      curl: prev ? prev.curl + (curl - prev.curl) * sm : curl,
+      gradMag: grad, height: h, t: performance.now()
+    };
+    if (waveCB) waveCB(waveState);
+  }
+
   function probePass() {
     var n = floaters.length;
-    if (!n) return;
     gl.useProgram(progProbe.p);
     gl.uniform2f(progProbe.u.uTexel, ripple.read.texelX, ripple.read.texelY);
     gl.uniform1i(progProbe.u.uRipple, bindTex(ripple.read.tex, 0));
@@ -834,8 +900,12 @@ window.LiquidBG = window.LiquidBG || {
 
     var pos = new Float32Array(MAXF * 2), hs = new Float32Array(MAXF * 2);
     var iw = window.innerWidth, ih = window.innerHeight;
+    var audioSlot = MAXF - 1; /* 音響センサー枠（ポインタの実位置を毎フレーム反映） */
     for (var i = 0; i < MAXF; i++) {
-      if (i < n) {
+      if (i === audioSlot) {
+        pos[i * 2] = pointer.x; pos[i * 2 + 1] = pointer.y;
+        hs[i * 2] = 0; hs[i * 2 + 1] = 0; /* 点プローブ：オフセット0＝ちょうどその点だけをサンプル */
+      } else if (i < n) {
         var f = floaters[i];
         pos[i * 2]     = (f.bx + f.ox) / iw;
         pos[i * 2 + 1] = 1 - (f.by + f.oy) / ih;
@@ -856,6 +926,7 @@ window.LiquidBG = window.LiquidBG || {
       pboBusy = true;
     } else if (!isGL2) {
       gl.readPixels(0, 0, pw, 1, gl.RGBA, gl.UNSIGNED_BYTE, probeBuf);
+      decodeWaveState();
     }
   }
 
@@ -867,6 +938,7 @@ window.LiquidBG = window.LiquidBG || {
       gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, probeBuf);
       gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
       gl.deleteSync(fence); fence = null; pboBusy = false;
+      decodeWaveState();
     }
   }
 
@@ -1043,10 +1115,14 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform1f(progCopy.u.uValue, 0.8);
     blit(pressure.write); pressure.swap();
 
+    /* 端末が重くて downgrades が発生した場合は反復回数もわずかに削り、
+       解像度ダウングレードだけでは追いつかない負荷にも追従する
+       （PRESSURE_ITER_MIN を下限として発散防止の質は最低限保つ） */
+    var pIters = Math.max(CONFIG.PRESSURE_ITER_MIN, CONFIG.PRESSURE_ITER - downgrades * 2);
     gl.useProgram(progPressure.p);
     gl.uniform2f(progPressure.u.uTexel, tx, ty);
     gl.uniform1i(progPressure.u.uDivergence, bindTex(divergence.tex, 0));
-    for (var i = 0; i < CONFIG.PRESSURE_ITER; i++) {
+    for (var i = 0; i < pIters; i++) {
       gl.uniform1i(progPressure.u.uPressure, bindTex(pressure.read.tex, 1));
       blit(pressure.write); pressure.swap();
     }
@@ -1057,13 +1133,48 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform1i(progGradient.u.uVelocity, bindTex(velocity.read.tex, 1));
     blit(velocity.write); velocity.swap();
 
-    gl.useProgram(progAdvect.p);
-    gl.uniform2f(progAdvect.u.uTexel, tx, ty);
-    gl.uniform1i(progAdvect.u.uVelocity, bindTex(velocity.read.tex, 0));
-    gl.uniform1i(progAdvect.u.uSource, bindTex(velocity.read.tex, 0));
-    gl.uniform1f(progAdvect.u.uDt, dt);
-    gl.uniform1f(progAdvect.u.uDissipation, CONFIG.VEL_DISSIPATION);
-    blit(velocity.write); velocity.swap();
+    if (CONFIG.ADVECT_BFECC && bfeccOK) {
+      /* --- BFECC（clamped MacCormack）による速度の自己移流 ---
+         1) 通常どおり前方移流 → bfeccA (φ^n+1)
+         2) それを逆方向(-dt)にもう一度移流 → bfeccB (φ^n, 往復推定)
+         3) 元の速度場との差の半分を補正として足し戻し、近傍min/maxでクランプ
+         4) 補正後の場を改めて前方移流（ここで初めてdissipationを適用） */
+      gl.useProgram(progAdvect.p);
+      gl.uniform2f(progAdvect.u.uTexel, tx, ty);
+      gl.uniform1i(progAdvect.u.uVelocity, bindTex(velocity.read.tex, 0));
+      gl.uniform1i(progAdvect.u.uSource, bindTex(velocity.read.tex, 0));
+      gl.uniform1f(progAdvect.u.uDt, dt);
+      gl.uniform1f(progAdvect.u.uDissipation, 0.0);
+      blit(bfeccA);
+
+      gl.uniform1i(progAdvect.u.uVelocity, bindTex(velocity.read.tex, 0));
+      gl.uniform1i(progAdvect.u.uSource, bindTex(bfeccA.tex, 0));
+      gl.uniform1f(progAdvect.u.uDt, -dt);
+      gl.uniform1f(progAdvect.u.uDissipation, 0.0);
+      blit(bfeccB);
+
+      gl.useProgram(progBfecc.p);
+      gl.uniform2f(progBfecc.u.uTexel, tx, ty);
+      gl.uniform1i(progBfecc.u.uSource, bindTex(velocity.read.tex, 0));
+      gl.uniform1i(progBfecc.u.uBack, bindTex(bfeccB.tex, 1));
+      blit(bfeccA); /* 補正後の場を bfeccA に上書き保存 */
+
+      gl.useProgram(progAdvect.p);
+      gl.uniform2f(progAdvect.u.uTexel, tx, ty);
+      gl.uniform1i(progAdvect.u.uVelocity, bindTex(velocity.read.tex, 0));
+      gl.uniform1i(progAdvect.u.uSource, bindTex(bfeccA.tex, 1));
+      gl.uniform1f(progAdvect.u.uDt, dt);
+      gl.uniform1f(progAdvect.u.uDissipation, CONFIG.VEL_DISSIPATION);
+      blit(velocity.write); velocity.swap();
+    } else {
+      gl.useProgram(progAdvect.p);
+      gl.uniform2f(progAdvect.u.uTexel, tx, ty);
+      gl.uniform1i(progAdvect.u.uVelocity, bindTex(velocity.read.tex, 0));
+      gl.uniform1i(progAdvect.u.uSource, bindTex(velocity.read.tex, 0));
+      gl.uniform1f(progAdvect.u.uDt, dt);
+      gl.uniform1f(progAdvect.u.uDissipation, CONFIG.VEL_DISSIPATION);
+      blit(velocity.write); velocity.swap();
+    }
 
     simTime += dt;
     gl.useProgram(progRipple.p);
@@ -1097,6 +1208,7 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform1f(u.uSpecular, CONFIG.SPECULAR);
     gl.uniform1f(u.uShininess, CONFIG.SHININESS);
     gl.uniform1f(u.uFresnel, CONFIG.FRESNEL);
+    gl.uniform1f(u.uAbsorb, CONFIG.WATER_ABSORB);
     gl.uniform1f(u.uFoamOpacity, CONFIG.FOAM_OPACITY);
     gl.uniform1f(u.uSharpen, CONFIG.SHARPEN);
     gl.uniform1f(u.uSaturation, CONFIG.SATURATION);
@@ -1227,7 +1339,7 @@ window.LiquidBG = window.LiquidBG || {
     if (acc > STEP * 3) acc = 0;
 
     draw();
-    if (glassOK && floaters.length) probePass();
+    if (glassOK) probePass(); /* 音響センサー用にフローターが無くても毎フレーム実行 */
 
     if (!shown && bgReady) { shown = true; canvas.classList.add('ready'); }
 
@@ -1269,6 +1381,12 @@ window.LiquidBG = window.LiquidBG || {
     },
     /* 一滴落ちたような波紋（強さ s: 0-1程度） */
     dropAt: function (x, y, s) { dropAt(x, y, s); },
+    /* --- 音響エンジン(liquid-audio.js)向け ---
+       ポインタ位置における実測の水面状態（自己減衰・慣性込み）。
+       glassOK な環境でのみ有効。無効時は null を返すので、呼び出し側は
+       null チェックのうえ、旧来のマウス速度ベースにフォールバックすること。 */
+    getWaveState: function () { return waveState; },
+    onWave: function (cb) { waveCB = (typeof cb === 'function') ? cb : null; },
     setEnabled: function (on) {
       running = !!on;
       if (running) start(); else { stop(); draw(); }

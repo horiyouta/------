@@ -14,8 +14,75 @@ display.addEventListener('scroll', () => {
     if (window.LiquidBG) window.LiquidBG.remeasure();
 }, { passive: true });
 
+// ===== YouTube再生検知（BGMのダッキング用） =====
+// iframe に enablejsapi=1 を付けて YT.Player でラップし、実際に「再生中」に
+// なったタイミングだけを検知する（表示/非表示の切り替えとは独立）。
+// 1つでも再生中の動画があれば window.BGMAudio.duck(true)、
+// なければ duck(false) にする。
+// (setMode が呼ばれる前に定義しておく必要があるため、ファイル冒頭に置く)
+let ytApiReady = false;
+let ytApiQueue = [];
+
+function withYTApiParams(url) {
+    if (!url) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
+}
+
+(function loadYouTubeAPI() {
+    if (window.YT && window.YT.Player) { ytApiReady = true; return; }
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+})();
+window.onYouTubeIframeAPIReady = function () {
+    ytApiReady = true;
+    ytApiQueue.forEach(fn => fn());
+    ytApiQueue = [];
+};
+
+let activeYTPlayers = {};
+let playingYTIds = new Set();
+
+function updateBGMDuck() {
+    if (window.BGMAudio) window.BGMAudio.duck(playingYTIds.size > 0);
+}
+
+function destroyYTPlayers() {
+    Object.keys(activeYTPlayers).forEach(id => {
+        try { activeYTPlayers[id].destroy(); } catch (e) { /* noop */ }
+    });
+    activeYTPlayers = {};
+    playingYTIds.clear();
+    updateBGMDuck();
+}
+
+function attachYTPlayer(iframeId) {
+    const create = () => {
+        if (!document.getElementById(iframeId)) return;
+        activeYTPlayers[iframeId] = new YT.Player(iframeId, {
+            events: {
+                onStateChange: e => {
+                    if (e.data === YT.PlayerState.PLAYING) playingYTIds.add(iframeId);
+                    else playingYTIds.delete(iframeId);
+                    updateBGMDuck();
+                }
+            }
+        });
+    };
+    if (ytApiReady) create(); else ytApiQueue.push(create);
+}
+
 // ===== Navigation =====
 let currentMode = 0;
+
+// URLハッシュルーティング用の付随状態（曲詳細/ボーカル詳細/検索結果の
+// 「どれを開いているか」を、再読み込みしても復元できるように覚えておく）
+let currentSongIdx = null;     // 曲詳細で開いている曲の index
+let currentVocalIdx = null;    // ボーカル詳細で開いているボーカルの index
+let currentVocalFrom = null;   // ボーカル詳細を曲詳細から開いた場合の遷移元 songIdx
+let lastSongSearch = { word: '', cbTitle: true, cbLyrics: true }; // 直近の曲検索条件
+let applyingRoute = false;     // ハッシュから状態を復元中は syncHash() を呼ばないためのガード
 
 function setMode(n) {
     currentMode = n;
@@ -25,8 +92,12 @@ function setMode(n) {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.toggle('active', Number(btn.dataset.mode) === n);
     });
+    // 曲詳細を離れるときは再生中のYouTubeプレイヤーを破棄し、BGMのダッキングも解除する
+    if (n !== 2 && typeof destroyYTPlayers === 'function') destroyYTPlayers();
     if (n === 2) renderSongHome();
+    if (n === 3) renderWorks();
     updateLiquidFloatersForMode(n);
+    if (n === 0 || n === 1) syncHash();
 }
 
 // ===== Liquid background: ビート板になるガラスパネルの選定 =====
@@ -67,10 +138,12 @@ function updateLiquidFloatersForSongView(view) {
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => setMode(Number(btn.dataset.mode)));
+    btn.addEventListener('click', () => {
+        const n = Number(btn.dataset.mode);
+        if (n === 3) worksPage = 1;
+        setMode(n);
+    });
 });
-
-setMode(0);
 
 // ===== Tools =====
 const roundFile = document.getElementById('roundFile');
@@ -123,43 +196,165 @@ inputFile.addEventListener('change', () => {
     }, { once: true });
 });
 
-// ===== Work Search (data.js) =====
+// ===== 作品集 (data.js) =====
+// デフォルトで全作品を表示。上部の検索欄で絞り込みでき、
+// 「共有日時順」「参照数の多い順」を切り替えられる。
+// 参照数順は各要素の data[i].stats.views（スカラ値）を1要素につき1回だけ
+// 読んで比較する、通常のワンパス配列ソートで実現している。
 const sInp = document.getElementById('sInp');
 const searchContent = document.getElementById('searchContent');
 
-function searchResult(word) {
-    setMode(3);
-    searchContent.textContent = '';
-    const today = new Date();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const date  = String(today.getDate()).padStart(2, '0');
-    const list  = [];
-    for (let i = 0; i < data.length; i++) {
-        if (
-            word === '全て' ||
-            (!word.endsWith('年前') && data[i].title.includes(word)) ||
-            (word.endsWith('年前') && data[i].history?.shared?.includes(
-                `${today.getFullYear() - Number(word[0])}-${month}-${date}`
-            ))
-        ) list.push(i);
+let worksQuery = '';
+let worksSortMode = 'date'; // 'date' | 'views'
+let worksPage = 1;          // 1-indexed
+const WORKS_PAGE_SIZE = 40; // 1ページあたりの最大表示数
+
+function matchesWorksQuery(i, word) {
+    if (!word) return true;
+    if (word === '全て') return true;
+    if (word.endsWith('年前')) {
+        const today = new Date();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const date  = String(today.getDate()).padStart(2, '0');
+        return !!data[i].history?.shared?.includes(
+            `${today.getFullYear() - Number(word[0])}-${month}-${date}`
+        );
     }
-    list.sort((a, b) => (data[b].stats?.views || 0) - (data[a].stats?.views || 0));
-    list.forEach(i => {
+    return data[i].title.includes(word);
+}
+
+// ページ番号ボタンの並びを組み立てる（現在ページの前後2つ + 先頭/末尾、間は「…」）
+function buildWorksPageWindow(current, total) {
+    const delta = 2;
+    const pages = [];
+    for (let i = 1; i <= total; i++) {
+        if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) pages.push(i);
+    }
+    const withDots = [];
+    let last = 0;
+    pages.forEach(p => {
+        if (last && p - last > 1) withDots.push('…');
+        withDots.push(p);
+        last = p;
+    });
+    return withDots;
+}
+
+function renderWorksPagination(container, current, total) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (total <= 1) return;
+
+    const mkBtn = (label, page, opts = {}) => {
+        const b = document.createElement('button');
+        b.className = 'page-btn' + (opts.active ? ' active' : '');
+        b.type = 'button';
+        b.textContent = label;
+        if (opts.disabled) {
+            b.disabled = true;
+        } else {
+            b.addEventListener('click', () => goToWorksPage(page));
+        }
+        return b;
+    };
+
+    container.appendChild(mkBtn('‹', current - 1, { disabled: current === 1 }));
+    buildWorksPageWindow(current, total).forEach(p => {
+        if (p === '…') {
+            const span = document.createElement('span');
+            span.className = 'page-ellipsis';
+            span.textContent = '…';
+            container.appendChild(span);
+        } else {
+            container.appendChild(mkBtn(String(p), p, { active: p === current }));
+        }
+    });
+    container.appendChild(mkBtn('›', current + 1, { disabled: current === total }));
+}
+
+function goToWorksPage(p) {
+    if (p === worksPage) return;
+    worksPage = p;
+    renderWorks();
+    display.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderWorks() {
+    searchContent.textContent = '';
+    const list = [];
+    for (let i = 0; i < data.length; i++) {
+        if (matchesWorksQuery(i, worksQuery)) list.push(i);
+    }
+
+    if (worksSortMode === 'views') {
+        list.sort((a, b) => (data[b].stats?.views || 0) - (data[a].stats?.views || 0));
+    } else {
+        list.sort((a, b) => new Date(data[b].history?.shared || 0) - new Date(data[a].history?.shared || 0));
+    }
+
+    // ページ数は data.js の件数から動的に算出する
+    const totalPages = Math.max(1, Math.ceil(list.length / WORKS_PAGE_SIZE));
+    if (worksPage > totalPages) worksPage = totalPages;
+    if (worksPage < 1) worksPage = 1;
+
+    const startIdx = (worksPage - 1) * WORKS_PAGE_SIZE;
+    const pageList = list.slice(startIdx, startIdx + WORKS_PAGE_SIZE);
+
+    pageList.forEach((i, idx) => {
         const card = document.createElement('div');
         card.className = 'work-card';
+        // ビート板のような浮遊アニメーションが揃いすぎないよう、カードごとにズラす
+        card.style.setProperty('--float-delay', `${(idx % 8) * 0.4}s`);
+        card.style.setProperty('--float-dur', `${5 + (idx % 5) * 0.7}s`);
+        const views = data[i].stats?.views || 0;
         card.innerHTML = `
-            <img src="https://uploads.scratch.mit.edu/get_image/project/${data[i].id}_408x306.png" alt="${data[i].title}" loading="lazy">
+            <div class="work-card-thumb">
+                <img src="https://uploads.scratch.mit.edu/get_image/project/${data[i].id}_408x306.png" alt="${data[i].title}" loading="lazy">
+            </div>
             <div class="work-card-title">${data[i].title}</div>
+            <div class="work-card-meta">👁 ${views.toLocaleString()}</div>
         `;
         card.addEventListener('click', () => window.open(`https://scratch.mit.edu/projects/${data[i].id}/`, '_blank'));
         searchContent.appendChild(card);
     });
+
     if (list.length === 0) {
         searchContent.innerHTML = '<p class="col-span-4 text-center text-gray-400 py-8">作品が見つかりませんでした</p>';
     }
+
+    const countInfo = document.getElementById('worksCountInfo');
+    if (countInfo) {
+        if (list.length === 0) {
+            countInfo.textContent = '';
+        } else {
+            const rangeStart = startIdx + 1;
+            const rangeEnd = Math.min(startIdx + WORKS_PAGE_SIZE, list.length);
+            countInfo.textContent = `${list.length.toLocaleString()}件中 ${rangeStart}-${rangeEnd}件を表示（${worksPage}/${totalPages}ページ）`;
+        }
+    }
+
+    renderWorksPagination(document.getElementById('worksPageTop'), worksPage, totalPages);
+    renderWorksPagination(document.getElementById('worksPageBottom'), worksPage, totalPages);
+
+    syncHash();
 }
 
-sInp.addEventListener('keydown', e => { if (e.key === 'Enter' && sInp.value) searchResult(sInp.value); });
+sInp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        worksQuery = sInp.value.trim();
+        worksPage = 1;
+        setMode(3);
+    }
+});
+
+document.querySelectorAll('#worksSortToggle .toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        worksSortMode = btn.dataset.sort;
+        worksPage = 1;
+        document.querySelectorAll('#worksSortToggle .toggle-btn').forEach(b => b.classList.toggle('active', b === btn));
+        renderWorks();
+    });
+});
 
 // ===== Songs (data2.js: songs / VOCALS) =====
 
@@ -167,14 +362,21 @@ sInp.addEventListener('keydown', e => { if (e.key === 'Enter' && sInp.value) sea
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let previousSongView = 'home';
+let currentSongView = 'home';
 
 function showSongView(view) {
+    currentSongView = view;
     document.getElementById('song-view-home').classList.toggle('hidden', view !== 'home');
     document.getElementById('song-view-detail').classList.toggle('hidden', view !== 'detail');
     document.getElementById('song-view-results').classList.toggle('hidden', view !== 'results');
     document.getElementById('song-view-vocal').classList.toggle('hidden', view !== 'vocal');
 
+    // 曲詳細（YouTube動画があるビュー）を離れるときは再生中プレイヤーを破棄してダッキング解除
+    if (view !== 'detail') destroyYTPlayers();
+
     if (currentMode === 2) updateLiquidFloatersForSongView(view);
+    if (view === 'home') { currentSongIdx = null; currentVocalIdx = null; currentVocalFrom = null; }
+    syncHash();
 }
 
 // ===== Song Search UI State =====
@@ -229,6 +431,7 @@ function vocalMatchSong(song) {
 }
 
 function doSongSearch(word, cbTitle, cbLyrics) {
+    lastSongSearch = { word, cbTitle, cbLyrics };
     const results = songs.filter(song => {
         if (!vocalMatchSong(song)) return false;
         if (!word) return true;
@@ -328,6 +531,7 @@ function openSongDetail(idx, fromView = null) {
     previousSongView = fromView || (
         document.getElementById('song-view-results').classList.contains('hidden') ? 'home' : 'results'
     );
+    currentSongIdx = idx;
     const song = songs[idx];
     const container = document.getElementById('songDetailContent');
 
@@ -377,14 +581,14 @@ function openSongDetail(idx, fromView = null) {
                 <div class="flex-1 min-w-0">
                     <div id="video-vocal" class="${song.youtubeUrl ? '' : 'hidden'}">
                         <div class="aspect-video w-full rounded-2xl overflow-hidden mb-3 bg-black shadow-md">
-                            <iframe class="w-full h-full" src="${song.youtubeUrl || ''}" frameborder="0"
+                            <iframe id="yt-vocal-player" class="w-full h-full" src="${song.youtubeUrl ? withYTApiParams(song.youtubeUrl) : ''}" frameborder="0"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
                         </div>
                     </div>
                     <div id="video-inst" class="hidden">
                         ${hasInstrumental ? `<div class="aspect-video w-full rounded-2xl overflow-hidden mb-3 bg-black shadow-md">
-                            <iframe class="w-full h-full" src="${song.instrumentalUrl}" frameborder="0"
+                            <iframe id="yt-inst-player" class="w-full h-full" src="${withYTApiParams(song.instrumentalUrl)}" frameborder="0"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
                         </div>` : `<div class="aspect-video w-full rounded-2xl bg-gray-100/60 mb-3 flex items-center justify-center text-gray-400 text-sm">インスト版なし</div>`}
@@ -416,11 +620,18 @@ function openSongDetail(idx, fromView = null) {
     }
 
     document.querySelector('#song-view-detail .back-btn').onclick = () => showSongView(previousSongView);
+
+    destroyYTPlayers();
+    if (song.youtubeUrl) attachYTPlayer('yt-vocal-player');
+    if (hasInstrumental) attachYTPlayer('yt-inst-player');
+
     showSongView('detail');
 }
 
 // ===== Vocal Detail =====
 function openVocalDetail(vocalIdx, fromSongIdx = null) {
+    currentVocalIdx = vocalIdx;
+    currentVocalFrom = fromSongIdx;
     const vocal    = VOCALS[vocalIdx];
     const container = document.getElementById('vocalDetailContent');
 
@@ -556,5 +767,155 @@ document.getElementById('calNext').addEventListener('click', () => {
     renderCalendar();
 });
 
+// ===== URL Hash Routing =====
+// 各モード・曲詳細・ボーカル詳細・検索結果（曲/作品どちらも条件込み）を
+// URLハッシュに反映し、再読み込みや共有リンクでも同じ画面を復元できるようにする。
+// 内部状態 → ハッシュ文字列
+function syncHash() {
+    if (applyingRoute) return; // ハッシュから状態を復元している最中は書き戻さない
+
+    let hash = '';
+
+    if (currentMode === 0) {
+        hash = 'screen=top';
+    } else if (currentMode === 1) {
+        hash = 'screen=tools';
+    } else if (currentMode === 2) {
+        if (currentSongView === 'detail' && currentSongIdx !== null) {
+            hash = `screen=songs&view=detail&song=${currentSongIdx}`;
+        } else if (currentSongView === 'vocal' && currentVocalIdx !== null) {
+            hash = `screen=songs&view=vocal&vocal=${currentVocalIdx}`
+                + (currentVocalFrom !== null ? `&from=${currentVocalFrom}` : '');
+        } else if (currentSongView === 'results') {
+            const p = new URLSearchParams();
+            p.set('screen', 'songs');
+            p.set('view', 'results');
+            if (lastSongSearch.word) p.set('q', lastSongSearch.word);
+            p.set('title', lastSongSearch.cbTitle ? '1' : '0');
+            p.set('lyrics', lastSongSearch.cbLyrics ? '1' : '0');
+            const activeVocals = vocalFilterState.map((v, i) => (v ? i : null)).filter(v => v !== null);
+            if (activeVocals.length) p.set('vocals', activeVocals.join(','));
+            p.set('match', matchMode);
+            hash = p.toString();
+        } else {
+            hash = 'screen=songs';
+        }
+    } else if (currentMode === 3) {
+        const p = new URLSearchParams();
+        p.set('screen', 'works');
+        if (worksQuery) p.set('q', worksQuery);
+        p.set('sort', worksSortMode);
+        p.set('page', String(worksPage));
+        hash = p.toString();
+    }
+
+    const newHash = '#' + hash;
+    if (location.hash !== newHash) {
+        // 検索条件の微調整のたびに履歴を汚さないよう replaceState を使う
+        // （＝戻る/進むの対象にはしないが、再読み込み時の復元はできる）
+        history.replaceState(null, '', newHash);
+    }
+}
+
+// ハッシュ文字列 → 内部状態を復元して該当画面を表示
+function applyHashRoute() {
+    const raw = location.hash.replace(/^#/, '');
+    applyingRoute = true;
+    try {
+        if (!raw) {
+            setMode(0);
+            return;
+        }
+        const params = new URLSearchParams(raw);
+        const screen = params.get('screen') || 'top';
+
+        if (screen === 'tools') {
+            setMode(1);
+        } else if (screen === 'works') {
+            worksQuery = params.get('q') || '';
+            sInp.value = worksQuery;
+            worksSortMode = params.get('sort') === 'views' ? 'views' : 'date';
+            document.querySelectorAll('#worksSortToggle .toggle-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.sort === worksSortMode);
+            });
+            const pageNum = parseInt(params.get('page'), 10);
+            worksPage = Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1;
+            setMode(3);
+        } else if (screen === 'songs') {
+            const view = params.get('view') || 'home';
+
+            currentMode = 2;
+            modes.forEach((el, i) => el.classList.toggle('hidden', i !== 2));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.toggle('active', Number(btn.dataset.mode) === 2);
+            });
+            renderCalendar();
+            renderSongList();
+
+            if (view === 'detail') {
+                const idx = parseInt(params.get('song'), 10);
+                if (Number.isFinite(idx) && songs[idx]) {
+                    openSongDetail(idx, 'home');
+                } else {
+                    showSongView('home');
+                }
+            } else if (view === 'vocal') {
+                const vIdx = parseInt(params.get('vocal'), 10);
+                const fromRaw = params.get('from');
+                const fromIdx = (fromRaw !== null && fromRaw !== '') ? parseInt(fromRaw, 10) : null;
+                if (Number.isFinite(vIdx) && VOCALS[vIdx]) {
+                    if (fromIdx !== null && Number.isFinite(fromIdx) && songs[fromIdx]) {
+                        openSongDetail(fromIdx, 'home');
+                        openVocalDetail(vIdx, fromIdx);
+                    } else {
+                        openVocalDetail(vIdx, null);
+                    }
+                } else {
+                    showSongView('home');
+                }
+            } else if (view === 'results') {
+                const word     = params.get('q') || '';
+                const cbTitle  = params.get('title') !== '0';
+                const cbLyrics = params.get('lyrics') !== '0';
+                document.getElementById('songSearch').value = word;
+                document.getElementById('cbTitle').checked = cbTitle;
+                document.getElementById('cbLyrics').checked = cbLyrics;
+
+                vocalFilterState = [false, false, false, false];
+                const vocalsParam = params.get('vocals');
+                if (vocalsParam) {
+                    vocalsParam.split(',').forEach(s => {
+                        const i = parseInt(s, 10);
+                        if (Number.isFinite(i) && i >= 0 && i < vocalFilterState.length) vocalFilterState[i] = true;
+                    });
+                }
+                document.querySelectorAll('.vocal-filter-btn').forEach(btn => {
+                    btn.classList.toggle('active', vocalFilterState[Number(btn.dataset.vocal)]);
+                });
+
+                matchMode = params.get('match') === 'exact' ? 'exact' : 'partial';
+                document.querySelectorAll('.match-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.match === matchMode);
+                });
+
+                doSongSearch(word, cbTitle, cbLyrics);
+            } else {
+                renderSongHome();
+            }
+            // 各サブビュー（detail/vocal/results/home）の浮遊要素設定は
+            // showSongView() → updateLiquidFloatersForSongView() 側で
+            // 既に正しく行われているため、ここで上書きしない。
+        } else {
+            setMode(0);
+        }
+    } finally {
+        applyingRoute = false;
+    }
+    syncHash(); // ページ範囲のクランプなど、復元後の状態をハッシュへ正規化して書き戻す
+}
+
+window.addEventListener('hashchange', applyHashRoute);
+
 // ===== Init =====
 renderSongHome();
+applyHashRoute();

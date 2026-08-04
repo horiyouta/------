@@ -39,6 +39,22 @@ html, body {
 }
 #liquid.ready { opacity: 1; }
 
+/* ===== Hero typing line ===== */
+.hero-type-line {
+    min-height: 1.4em;
+}
+.hero-cursor {
+    display: inline-block;
+    margin-left: 1px;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(255,255,255,0.9), 0 0 14px rgba(249,115,22,0.6);
+    animation: hero-cursor-glow 1.1s ease-in-out infinite;
+}
+@keyframes hero-cursor-glow {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
 /* 浮遊要素（ビート板）共通設定：JS が transform で位置・傾きを動かす */
 [data-float] {
     will-change: transform;
@@ -76,11 +92,21 @@ input, textarea,
     user-select: text;
 }
 
-/* ===== Scrollbar ===== */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.35); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(249, 115, 22, 0.6); }
+/* ===== Scrollbar（ゆめふわ×サイバー） ===== */
+* { scrollbar-width: thin; scrollbar-color: rgba(236,72,153,0.55) rgba(255,255,255,0.12); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb {
+    background-image: linear-gradient(180deg, #f97316, #ec4899 55%, #a855f7);
+    background-clip: padding-box;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-image: linear-gradient(180deg, #fb923c, #f472b6 55%, #c084fc);
+    background-clip: padding-box;
+}
 
 /* ===== Glass Morphism ===== */
 .glass-panel {
@@ -410,31 +436,86 @@ input, textarea,
     overflow-y: auto;
 }
 
-/* ===== Work search cards ===== */
+/* ===== 作品集カード（ゆめふわ×サイバー・ビート板ガラス） =====
+   流体エンジンの浮遊ガラス（[data-float]）と世界観を合わせつつ、
+   多数生成されるカードは物理エンジンの浮遊スロットを消費しないよう
+   CSSアニメーションだけで「波に浮いている」ような揺れを表現する。 */
 .work-card {
-    background: rgba(255,255,255,0.55);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.65);
-    border-radius: 16px;
+    position: relative;
+    background: linear-gradient(150deg, rgba(255,255,255,0.55), rgba(255,255,255,0.22));
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 20px;
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.2,0.8,0.2,1);
-    box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+    box-shadow:
+        0 4px 18px rgba(168,85,247,0.12),
+        0 2px 10px rgba(56,189,248,0.10),
+        inset 0 1px 0 rgba(255,255,255,0.75);
+    transition: transform 0.3s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.3s ease, background 0.3s ease;
+    animation: work-card-float var(--float-dur, 6s) ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+    will-change: transform;
+}
+/* ホログラム風の縁の光。ホバー時のみふわっと現れる */
+.work-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(125deg, rgba(249,115,22,0.20), rgba(236,72,153,0.16), rgba(56,189,248,0.18));
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
 }
 .work-card:hover {
-    transform: translateY(-3px) scale(1.02);
-    background: rgba(255,255,255,0.82);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    animation-play-state: paused;
+    transform: translateY(-6px) scale(1.03) rotate(-0.4deg);
+    background: linear-gradient(150deg, rgba(255,255,255,0.88), rgba(255,255,255,0.5));
+    box-shadow:
+        0 18px 40px rgba(168,85,247,0.22),
+        0 8px 22px rgba(56,189,248,0.16),
+        inset 0 1px 0 rgba(255,255,255,0.9);
 }
-.work-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+.work-card:hover::before { opacity: 1; }
+
+.work-card-thumb { position: relative; overflow: hidden; }
+.work-card-thumb img {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.45s cubic-bezier(0.2,0.8,0.2,1);
+}
+.work-card:hover .work-card-thumb img { transform: scale(1.08); }
+
 .work-card-title {
+    position: relative;
     font-size: 12px;
     font-weight: 700;
     color: #555;
-    padding: 8px 10px;
+    padding: 8px 10px 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.work-card-meta {
+    position: relative;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #a855f7;
+    padding: 0 10px 9px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+@keyframes work-card-float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-6px) rotate(0.6deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .work-card { animation: none; }
 }
 
 /* ===== Display scroll ===== */
@@ -466,6 +547,61 @@ input, textarea,
 .toggle-btn.active {
     background: rgba(255,255,255,0.8);
     color: #ea6c15;
+}
+
+/* ===== 作品集ページネーション ===== */
+.works-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 14px 0;
+}
+.page-btn {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.6);
+    color: #888;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2,0.8,0.2,1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.page-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.85);
+    color: #ea6c15;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+.page-btn.active {
+    background: linear-gradient(135deg, #f97316, #fb923c);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 3px 12px rgba(249,115,22,0.35);
+}
+.page-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
+}
+.page-ellipsis {
+    padding: 0 4px;
+    min-width: 20px;
+    text-align: center;
+    color: #aaa;
+    font-size: 13px;
+    font-weight: 700;
+    user-select: none;
 }
 
 /* Anniversary badge */
