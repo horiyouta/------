@@ -15,14 +15,14 @@
 window.LiquidBG = window.LiquidBG || {
   ready: false,
   isGlassOK: function () { return false; },
-  refresh: function () { },
-  remeasure: function () { },
-  ripple: function () { },
-  splat: function () { },
-  dropAt: function () { },
+  refresh: function () {},
+  remeasure: function () {},
+  ripple: function () {},
+  splat: function () {},
+  dropAt: function () {},
   getWaveState: function () { return null; },
-  onWave: function () { },
-  setEnabled: function () { }
+  onWave: function () {},
+  setEnabled: function () {}
 };
 
 (function () {
@@ -33,91 +33,76 @@ window.LiquidBG = window.LiquidBG || {
      ======================================================================= */
   var CONFIG = {
     /* --- 解像度 / 負荷 --- */
-    SIM_RES: 128,       // 流体（速度・圧力）グリッド短辺
-    RIPPLE_RES: 340,       // 波動グリッド短辺
-    DPR_MAX: 2.0,
-    MAX_PIXELS: 4600000,   // 解像度上限。低いと «ぼやけて淡く» 見えるので高め
-    PRESSURE_ITER: 12,
+    SIM_RES:          128,       // 流体（速度・圧力）グリッド短辺
+    RIPPLE_RES:       340,       // 波動グリッド短辺
+    DPR_MAX:          2.0,
+    MAX_PIXELS:       4600000,   // 解像度上限。低いと «ぼやけて淡く» 見えるので高め
+    PRESSURE_ITER:    12,
 
     /* --- 流体 --- */
-    VEL_DISSIPATION: 0.60,       // BFECC導入で数値拡散が減った分、+0.05して体感の「収まり」を維持
-    CURL: 5.0,
-    FORCE: 5000.0,
-    SPLAT_RADIUS: 0.00075,
-    RIPPLE_RADIUS: 0.00022,
-    RIPPLE_AMP: 0.0042,
-    ADVECT_BFECC: true,       // 速度移流をBFECC(MacCormack系)に。渦・波のシャープさを長時間維持（高負荷時はfalseで従来の1次精度に自動フォールバック可）
+    VEL_DISSIPATION:  0.60,       // BFECC導入で数値拡散が減った分、+0.05して体感の「収まり」を維持
+    CURL:             5.0,
+    FORCE:            5000.0,
+    SPLAT_RADIUS:     0.00075,
+    RIPPLE_RADIUS:    0.00022,
+    RIPPLE_AMP:       0.0042,
+    ADVECT_BFECC:     true,       // 速度移流をBFECC(MacCormack系)に。渦・波のシャープさを長時間維持（高負荷時はfalseで従来の1次精度に自動フォールバック可）
     PRESSURE_ITER_MIN: 6,         // 端末が重い時（downgrades発生時）でも最低限これだけは反復する
 
     /* --- 一滴（クリック） --- */
-    DROP_RADIUS: 0.00055,
-    DROP_DEPTH: 0.95,
-    DROP_RIM: 0.34,
+    DROP_RADIUS:      0.00055,
+    DROP_DEPTH:       0.95,
+    DROP_RIM:         0.34,
 
     /* --- 波動 --- */
-    WAVE_C2: 0.23,
-    WAVE_DAMP: 0.9962,
-    WAVE_ADVECT: 2.0,
-    FOAM_DECAY: 0.975,
-    AMBIENT: 0.000085,  // 常時の微細なうねり（0 で静止）
+    WAVE_C2:          0.23,
+    WAVE_DAMP:        0.9962,
+    WAVE_ADVECT:      2.0,
+    FOAM_DECAY:       0.975,
+    AMBIENT:          0.000085,  // 常時の微細なうねり（0 で静止）
 
-    /* --- 水のレンダリング：2.5D高さ場を «厚みのある水槽» として屈折させる方式 ---
-       疑似カメラ（uCamSpread で開き具合を調整）から伸ばした視線を、高さ場から
-       求めた法線で Snell の法則により屈折させ、uTankDepth 下にある水底
-       （＝背景写真）へ実際に到達させて着地点のズレをオフセットとして使う
-       （＝解析的に解いた最短経路のレイマーチング／水槽屈折）。カメラ自身の
-       視差分は差し引くので、水面が完全に平らな場所は常に元画像と一致し、
-       波が立った場所・画面端に近いほど「水槽を覗き込む」歪みが強く出る。 */
-    REFRACT: 1.00,      // 屈折オフセット全体の強さ（芸術的な最終ゲイン）
-    OFFSET_CLAMP: 0.11,      // オフセット量の上限（波が尖った時の破綻防止）
-    TANK_DEPTH: 0.62,      // 水底までの«深さ»（UV相当単位）。大きいほど厚みのある水槽に見える
-    CAM_SPREAD: 0.85,      // 疑似カメラのFOVに相当。大きいほど画面端で壁を覗き込む歪みが強まる
-    WATER_IOR: 1.333,     // 水の屈折率（実際の水とほぼ同じ値）
-    FLOW_DISTORT: 0.000055,
-    NORMAL_SCALE: 1.7,
-    CAUSTIC: 0.85,      // 集光。高さ場のヘッシアン行列式から求める«本物»寄りの集光近似
-    SPECULAR: 0.55,      // 平面成分を差し引いた «増加分だけ» を加算
-    SHININESS: 52.0,
-    FRESNEL: 0.16,      // Schlickの式で求めた本物のフレネル反射率に掛かるゲイン
-    WATER_ABSORB: 0.34,      // Beer-Lambert風の深み吸光。波の谷だけ暗く青緑へ沈む（平らなら寄与0）
-    FOAM_OPACITY: 0.30,
-    SHARPEN: 0.16,      // 縮小リサンプルで失われる解像感の回復（0 で無効）
-    SATURATION: 1.06,      // 1.0 = 元画像どおり
-    BRIGHTNESS: 1.00,      // 1.0 = 元画像どおり
-    AUTO_DROPS: true,
+    /* --- 水のレンダリング（すべて «平らなら元画像と完全一致» になる設計） --- */
+    REFRACT:          0.030,
+    FLOW_DISTORT:     0.000055,
+    NORMAL_SCALE:     1.7,
+    CAUSTIC:          0.85,      // 集光。乗算は平均 1 になるので全体は暗くならない
+    SPECULAR:         0.55,      // 平面成分を差し引いた «増加分だけ» を加算
+    SHININESS:        52.0,
+    FRESNEL:          0.16,      // 加算（灰色 mix をやめたので彩度が落ちない）
+    WATER_ABSORB:     0.34,      // Beer-Lambert風の深み吸光。波の谷だけ暗く青緑へ沈む（平らなら寄与0）
+    FOAM_OPACITY:     0.30,
+    SHARPEN:          0.16,      // 縮小リサンプルで失われる解像感の回復（0 で無効）
+    SATURATION:       1.06,      // 1.0 = 元画像どおり
+    BRIGHTNESS:       1.00,      // 1.0 = 元画像どおり
+    AUTO_DROPS:       true,
 
     /* --- 浮遊要素の物理 --- */
-    FLOAT_SLIDE: 2600.0,    // 波の傾斜で滑る強さ
-    FLOAT_FLOW: 0.055,     // 流れに押される強さ
-    FLOAT_SPRING: 26.0,      // 錨（元位置に戻る力）
-    FLOAT_DAMP: 4.6,       // 水の抵抗
-    FLOAT_MAX_OFF: 30.0,      // 最大変位 px
-    FLOAT_TILT: 90.0,      // 波の傾斜 → 傾き(deg)
-    FLOAT_TILT_MAX: 4.2,
-    FLOAT_SPIN: 0.055,     // 渦度 → 回転(deg)
-    FLOAT_SPIN_MAX: 2.6,
-    FLOAT_SMOOTH: 44.0,      // 姿勢追従のばね
-    FLOAT_WAKE: 0.55,      // 動いたときに立てる波（航跡）
+    FLOAT_SLIDE:      2600.0,    // 波の傾斜で滑る強さ
+    FLOAT_FLOW:       0.055,     // 流れに押される強さ
+    FLOAT_SPRING:     26.0,      // 錨（元位置に戻る力）
+    FLOAT_DAMP:       4.6,       // 水の抵抗
+    FLOAT_MAX_OFF:    30.0,      // 最大変位 px
+    FLOAT_TILT:       90.0,      // 波の傾斜 → 傾き(deg)
+    FLOAT_TILT_MAX:   4.2,
+    FLOAT_SPIN:       0.055,     // 渦度 → 回転(deg)
+    FLOAT_SPIN_MAX:   2.6,
+    FLOAT_SMOOTH:     44.0,      // 姿勢追従のばね
+    FLOAT_WAKE:       0.55,      // 動いたときに立てる波（航跡）
 
-    /* --- ガラス ---
-       [data-float] の CSS 側 rotateX/rotateY 傾き(f.tx / f.ty)を、屈折・映り
-       込み・ハイライトの法線に直接合成する（GLASS_TILT_GAIN で強さ調整）。
-       これにより「見た目は3D傾斜しているのに光の反射だけ傾きに無反応」と
-       いう不自然さ（旧実装ではハイライトが常に固定方向だった）を解消する。 */
-    GLASS_THICK: 11.0,      // 厚み（屈折量）※薄めにして歪みを控えめに
-    GLASS_BEVEL: 13.0,      // 縁の丸まり幅 px ※境界帯を細く
-    GLASS_IOR: 1.42,
-    GLASS_TILT_GAIN: 2.2,       // rotateX/rotateY の傾きを法線へ反映する強さ
-    GLASS_DISPERSE: 0.009,     // 色収差 ※抑えめ
-    GLASS_FROST: 0.34,      // すりガラス度（可読性はここで調整）
+    /* --- ガラス --- */
+    GLASS_THICK:      11.0,      // 厚み（屈折量）※薄めにして歪みを控えめに
+    GLASS_BEVEL:      13.0,      // 縁の丸まり幅 px ※境界帯を細く
+    GLASS_IOR:        1.42,
+    GLASS_DISPERSE:   0.009,     // 色収差 ※抑えめ
+    GLASS_FROST:      0.34,      // すりガラス度（可読性はここで調整）
     GLASS_EDGE_FROST: 0.20,      // 縁の散乱 ※抑えめ
-    GLASS_REFLECT: 0.46,      // 映り込み量（フレネル）※控えめ
-    GLASS_SPEC: 0.68,      // ハイライト ※控えめ
-    GLASS_EDGE: 0.22,      // 磨かれた縁の光 ※控えめ
-    GLASS_GAIN: 1.02,      // ガラス越しの明るさ補正（暗く見せない）
-    GLASS_ABSORB: 0.028,     // 吸収（わずかな青緑）
-    GLASS_SHADOW: 0.18,      // 接地影 ※控えめ
-    GLASS_CAUSTIC: 0.18       // ガラスの下に落ちる集光 ※控えめ
+    GLASS_REFLECT:    0.46,      // 映り込み量（フレネル）※控えめ
+    GLASS_SPEC:       0.68,      // ハイライト ※控えめ
+    GLASS_EDGE:       0.22,      // 磨かれた縁の光 ※控えめ
+    GLASS_GAIN:       1.02,      // ガラス越しの明るさ補正（暗く見せない）
+    GLASS_ABSORB:     0.028,     // 吸収（わずかな青緑）
+    GLASS_SHADOW:     0.18,      // 接地影 ※控えめ
+    GLASS_CAUSTIC:    0.18       // ガラスの下に落ちる集光 ※控えめ
   };
 
   var MAXF = 8; /* 浮遊要素の最大数 */
@@ -369,10 +354,6 @@ window.LiquidBG = window.LiquidBG || {
   ].join('\n');
 
   /* 水面合成：波が平らなら出力は元画像と完全に一致する（暗転・退色ゼロ） */
-  /* 水面合成：高さ場を «厚みを持った水槽» として扱い、疑似カメラの視線を
-     Snell の法則で屈折させて水底（背景写真）まで届かせる解析的レイマーチング。
-     水面が完全に平らな場所は、カメラ自身の透視ズレを差し引くことで
-     常に元画像の色と一致する（暗転・退色ゼロ）。 */
   var F_WATER = PREC_F + [
     'varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;',
     'uniform sampler2D uBg; uniform sampler2D uRipple; uniform sampler2D uVelocity;',
@@ -380,7 +361,6 @@ window.LiquidBG = window.LiquidBG || {
     'uniform float uAspect, uRefract, uFlow, uNormalScale, uCaustic;',
     'uniform float uSpecular, uShininess, uFresnel, uFoamOpacity;',
     'uniform float uSharpen, uSaturation, uBrightness, uFinal, uAbsorb;',
-    'uniform float uTankDepth, uCamSpread, uIor, uOffsetClamp;',
     '',
     'vec2 bgUv(vec2 uv){ return (uv - 0.5) * uCover + 0.5; }',
     '',
@@ -391,33 +371,11 @@ window.LiquidBG = window.LiquidBG || {
     '  float hR = texture2D(uRipple, vR).r;',
     '  float hT = texture2D(uRipple, vT).r;',
     '  float hB = texture2D(uRipple, vB).r;',
-    '  float hLT = texture2D(uRipple, vec2(vL.x, vT.y)).r;',
-    '  float hRT = texture2D(uRipple, vec2(vR.x, vT.y)).r;',
-    '  float hLB = texture2D(uRipple, vec2(vL.x, vB.y)).r;',
-    '  float hRB = texture2D(uRipple, vec2(vR.x, vB.y)).r;',
     '',
     '  vec2 grad = vec2(hR - hL, hT - hB) * uNormalScale;',
     '  vec3 n = normalize(vec3(-grad, 1.0));',
-    '',
-    '  /* 疑似カメラ：画面端ほど斜めに水面を見込むレイを作る（水槽の壁を',
-    '     覗き込む感覚の源）。uCamSpread=0 なら真上からの正射影に戻る。 */',
-    '  vec3 I = normalize(vec3((vUv - 0.5) * uCamSpread, -1.0));',
-    '',
-    '  /* Snell の法則で空気→水へ屈折させ、水底(uTankDepth 下)まで実際に',
-    '     届かせて着地点を求める＝解析的に解いた最短経路のレイマーチング。',
-    '     カメラ自身の透視ズレ（屈折なしで同じ視線が水底に落ちる位置）を',
-    '     差し引くので、平らな場所は常に元画像と一致する。 */',
-    '  vec3 Rr = refract(I, n, 1.0 / uIor);',
-    '  if (dot(Rr, Rr) < 1e-5) Rr = I;',
-    '  vec2 hit    = Rr.xy / max(-Rr.z, 0.05) * uTankDepth;',
-    '  vec2 hitCam = I.xy  / max(-I.z,  0.05) * uTankDepth;',
-    '  vec2 off = (hit - hitCam) * vec2(1.0 / uAspect, 1.0) * uRefract;',
-    '',
     '  vec2 vel = texture2D(uVelocity, vUv).xy;',
-    '  off += vel * uFlow;',
-    '',
-    '  float offLen = length(off);',
-    '  if (offLen > uOffsetClamp) off *= uOffsetClamp / max(offLen, 1e-5);',
+    '  vec2 off = (n.xy * uRefract + vel * uFlow) * vec2(1.0 / uAspect, 1.0);',
     '',
     '  vec3 col;',
     '  col.r = texture2D(uBg, bgUv(vUv + off * 1.045)).r;',
@@ -432,25 +390,11 @@ window.LiquidBG = window.LiquidBG || {
     '    col += (col - lo * 0.25) * uSharpen;',
     '  }',
     '',
-    '  /* 水槽の壁：着地点が写真の範囲外に出た分だけ壁に当たったとみなし、',
-    '     わずかに沈んだ色味にする（テクスチャは CLAMP_TO_EDGE で破綻しない',
-    '     が、境界だと分かるヒントを足す） */',
-    '  vec2 buv = bgUv(vUv + off);',
-    '  vec2 out0 = max(max(-buv, buv - 1.0), 0.0);',
-    '  float wall = clamp(max(out0.x, out0.y) * 22.0, 0.0, 0.4);',
-    '',
-    '  /* 集光：高さ場のヘッシアン行列式から «屈折光束の収束/発散» を近似する',
-    '     （本物のコースティクスと同じ理屈：det(J)<1＝収束＝明るい、',
-    '     det(J)>1＝発散＝暗い）。旧実装のラプラシアンのみの近似より厳密。 */',
-    '  float hxx = hL - 2.0 * hC + hR;',
-    '  float hyy = hT - 2.0 * hC + hB;',
-    '  float hxy = (hRT - hLT - hRB + hLB) * 0.25;',
-    '  float k = uNormalScale * uTankDepth * uRefract * 2.4;',
-    '  float Jxx = 1.0 - k * hxx, Jyy = 1.0 - k * hyy, Jxy = -k * hxy;',
-    '  float det = Jxx * Jyy - Jxy * Jxy;',
-    '  float caustic = clamp(1.0 / max(abs(det), 0.22) - 1.0, -0.5, 2.4) * uCaustic;',
+    '  /* 集光：乗算の平均は 1（明部と暗部が相殺）なので全体の明るさは保たれる */',
+    '  float lap = (hL + hR + hT + hB) - 4.0 * hC;',
+    '  float caustic = clamp(-lap * uCaustic, -0.24, 0.90);',
     '  col *= 1.0 + caustic;',
-    '  col += vec3(0.80, 0.90, 1.00) * max(caustic, 0.0) * 0.10;',
+    '  col += vec3(0.80, 0.90, 1.00) * max(caustic, 0.0) * 0.13;',
     '',
     '  /* Beer-Lambert風の深み吸光：波の «谷» だけ赤成分から先に吸収されて',
     '     青緑に沈む。hC>=0（平ら・山）では depth=0 になるので、',
@@ -458,22 +402,16 @@ window.LiquidBG = window.LiquidBG || {
     '  float depth = clamp(-hC, 0.0, 1.0);',
     '  vec3 deepTint = vec3(0.58, 0.86, 0.93);',
     '  col *= mix(vec3(1.0), deepTint, depth * uAbsorb);',
-    '  col = mix(col, col * vec3(0.55, 0.64, 0.74), wall);',
     '',
-    '  /* 鏡面：実際の視線方向(-I)によるハーフベクトルで平面成分を差し引き',
-    '     «増加分だけ» 加算する → 平らなら寄与 0 */',
-    '  vec3 viewDir = -I;',
+    '  /* 鏡面：平面時の値を差し引いて «増加分だけ» 加算 → 平らなら寄与 0 */',
     '  vec3 lightDir = normalize(vec3(-0.35, 0.55, 0.76));',
-    '  vec3 hv = normalize(lightDir + viewDir);',
-    '  float flat0 = pow(max(dot(vec3(0.0, 0.0, 1.0), hv), 0.0), uShininess);',
+    '  vec3 hv = normalize(lightDir + vec3(0.0, 0.0, 1.0));',
+    '  float flat0 = pow(hv.z, uShininess);',
     '  float spec = max(pow(max(dot(n, hv), 0.0), uShininess) - flat0, 0.0) * uSpecular;',
     '  col += vec3(1.0, 0.97, 0.92) * spec;',
     '',
-    '  /* フレネル：Schlick近似による本物の反射率（IOR依存）を加算。',
-    '     疑似カメラのFOVがある分、画面端は水面が平らでもわずかに反射が',
-    '     乗る＝実際の水槽をやや斜めに見た時と同じ挙動。 */',
-    '  float f0 = (uIor - 1.0) / (uIor + 1.0); f0 *= f0;',
-    '  float fres = (f0 + (1.0 - f0) * pow(clamp(1.0 - max(dot(n, viewDir), 0.0), 0.0, 1.0), 5.0)) * uFresnel;',
+    '  /* フレネル：灰色へ mix せず «加算» するので彩度が落ちない */',
+    '  float fres = pow(1.0 - n.z, 1.6) * uFresnel;',
     '  col += vec3(0.42, 0.60, 0.86) * fres;',
     '',
     '  float f = smoothstep(0.30, 1.15, foam);',
@@ -576,8 +514,7 @@ window.LiquidBG = window.LiquidBG || {
     'uniform vec2 uRes;',
     'uniform vec4 uGRect[MAXG];  /* cx, cy, halfX, halfY (px) */',
     'uniform vec4 uGRot[MAXG];   /* cos, sin, radius, active */',
-    'uniform vec4 uGOpt[MAXG];   /* thickness, unused, unused, frost */',
-    'uniform vec2 uGTilt[MAXG];  /* CSS rotateY/rotateX 由来の法線オフセット(x,y) */',
+    'uniform vec4 uGOpt[MAXG];   /* thickness, parallaxX, parallaxY, frost */',
     'uniform float uBevel, uIor, uDisperse, uEdgeFrost, uReflect;',
     'uniform float uSpec, uEdge, uGain, uAbsorb, uShadow, uCaustic;',
     '',
@@ -622,17 +559,10 @@ window.LiquidBG = window.LiquidBG || {
     '        float slope = (1.0 - t) / max(hgt, 0.12);',
     '        vec2 g2 = sdDir(p, hb, rad);',
     '        vec2 gw = vec2(g2.x * rot.x - g2.y * rot.y, g2.x * rot.y + g2.y * rot.x);',
-    '        /* 板自体の傾き(rotateX/rotateY)を法線に直接合成する。以前は',
-    '           «縁の丸まり» だけが法線に効き、板の中央はどれだけ傾いても',
-    '           法線が (0,0,1) 固定で光に無反応だった（=見た目は傾いている',
-    '           のに反射・ハイライトだけ動かず不自然）。tilt を混ぜることで',
-    '           屈折・映り込み・ハイライトのすべてが同じ物理量に追従する。 */',
-    '        vec3 n = normalize(vec3(gw * slope * 0.9 + uGTilt[i], 1.0));',
+    '        vec3 n = normalize(vec3(gw * slope * 0.9, 1.0));',
     '',
-    '        /* 屈折：厚み × (1 - 1/IOR) 分だけ背後の像をずらす（tilt 由来の',
-    '           ズレも同じ物理式を通るので、旧実装の別枠パララックスのような',
-    '           «無関係な定数» を足す必要がなくなり動きが噛み合う） */',
-    '        vec2 base = n.xy * th * (1.0 - 1.0 / uIor) * 7.0;',
+    '        /* 屈折：厚み × (1 - 1/IOR) 分だけ背後の像をずらす */',
+    '        vec2 base = n.xy * th * (1.0 - 1.0 / uIor) * 7.0 + opt.yz;',
     '        vec3 sharp;',
     '        sharp.r = texture2D(uScene, (fp + base * (1.0 + uDisperse)) / uRes).r;',
     '        sharp.g = texture2D(uScene, (fp + base) / uRes).g;',
@@ -708,22 +638,22 @@ window.LiquidBG = window.LiquidBG || {
     return { p: p, u: u };
   }
 
-  var progCopy = createProgram(F_COPY);
-  var progAdvect = createProgram(F_ADVECT);
-  var progBfecc = createProgram(F_BFECC_CORRECT);
-  var progDiv = createProgram(F_DIVERGENCE);
-  var progCurl = createProgram(F_CURL);
-  var progVort = createProgram(F_VORTICITY);
+  var progCopy     = createProgram(F_COPY);
+  var progAdvect   = createProgram(F_ADVECT);
+  var progBfecc    = createProgram(F_BFECC_CORRECT);
+  var progDiv      = createProgram(F_DIVERGENCE);
+  var progCurl     = createProgram(F_CURL);
+  var progVort     = createProgram(F_VORTICITY);
   var progPressure = createProgram(F_PRESSURE);
   var progGradient = createProgram(F_GRADIENT);
-  var progSplatV = createProgram(F_SPLAT_VEL);
-  var progSplatR = createProgram(F_SPLAT_RIPPLE);
-  var progRipple = createProgram(F_RIPPLE);
-  var progWater = createProgram(F_WATER);
-  var progDown = createProgram(F_DOWN);
-  var progBlur = createProgram(F_BLUR);
-  var progProbe = createProgram(F_PROBE);
-  var progGlass = createProgram(F_GLASS);
+  var progSplatV   = createProgram(F_SPLAT_VEL);
+  var progSplatR   = createProgram(F_SPLAT_RIPPLE);
+  var progRipple   = createProgram(F_RIPPLE);
+  var progWater    = createProgram(F_WATER);
+  var progDown     = createProgram(F_DOWN);
+  var progBlur     = createProgram(F_BLUR);
+  var progProbe    = createProgram(F_PROBE);
+  var progGlass    = createProgram(F_GLASS);
 
   if (!progWater || !progRipple || !progAdvect) { disable(); return; }
   var glassOK = !!(progGlass && progProbe && progBlur && progDown);
@@ -835,14 +765,14 @@ window.LiquidBG = window.LiquidBG || {
     rip.w = Math.min(rip.w, canvas.width);
     rip.h = Math.min(rip.h, canvas.height);
 
-    velocity = doubleFBO(sim.w, sim.h, gl.LINEAR);
-    pressure = doubleFBO(sim.w, sim.h, gl.NEAREST);
+    velocity   = doubleFBO(sim.w, sim.h, gl.LINEAR);
+    pressure   = doubleFBO(sim.w, sim.h, gl.NEAREST);
     divergence = halfFBO(sim.w, sim.h, gl.NEAREST);
-    curlFBO = halfFBO(sim.w, sim.h, gl.NEAREST);
-    ripple = doubleFBO(rip.w, rip.h, gl.LINEAR);
+    curlFBO    = halfFBO(sim.w, sim.h, gl.NEAREST);
+    ripple     = doubleFBO(rip.w, rip.h, gl.LINEAR);
     /* BFECC の往復推定用ワークバッファ（速度と同解像度、2枚で足りる） */
-    bfeccA = halfFBO(sim.w, sim.h, gl.LINEAR);
-    bfeccB = halfFBO(sim.w, sim.h, gl.LINEAR);
+    bfeccA     = halfFBO(sim.w, sim.h, gl.LINEAR);
+    bfeccB     = halfFBO(sim.w, sim.h, gl.LINEAR);
 
     if (glassOK) {
       scene = byteFBO(canvas.width, canvas.height, gl.LINEAR);
@@ -942,10 +872,10 @@ window.LiquidBG = window.LiquidBG || {
     var o = (MAXF - 1) * 12;
     var gx = dec16(o) * P_GRAD, gy = dec16(o + 2) * P_GRAD;
     var vx = dec16(o + 4) * P_VEL, vy = dec16(o + 6) * P_VEL;
-    var h = dec16(o + 8) * P_H;
+    var h  = dec16(o + 8) * P_H;
     var curl = dec16(o + 10) * P_CURL;
     var speed = Math.sqrt(vx * vx + vy * vy);
-    var grad = Math.sqrt(gx * gx + gy * gy);
+    var grad  = Math.sqrt(gx * gx + gy * gy);
     var prev = waveState;
     /* 軽くスムージング（フレーム間の量子化ノイズを均す。物理的な慣性は
        シミュレーション自体が既に持っているので、ここは最小限でよい） */
@@ -977,10 +907,10 @@ window.LiquidBG = window.LiquidBG || {
         hs[i * 2] = 0; hs[i * 2 + 1] = 0; /* 点プローブ：オフセット0＝ちょうどその点だけをサンプル */
       } else if (i < n) {
         var f = floaters[i];
-        pos[i * 2] = (f.bx + f.ox) / iw;
+        pos[i * 2]     = (f.bx + f.ox) / iw;
         pos[i * 2 + 1] = 1 - (f.by + f.oy) / ih;
-        hs[i * 2] = (f.bw * 0.5) / iw;
-        hs[i * 2 + 1] = (f.bh * 0.5) / ih;
+        hs[i * 2]      = (f.bw * 0.5) / iw;
+        hs[i * 2 + 1]  = (f.bh * 0.5) / ih;
       } else { pos[i * 2] = 0.5; pos[i * 2 + 1] = 0.5; }
     }
     gl.uniform2fv(progProbe.u.uPos, pos);
@@ -1025,7 +955,7 @@ window.LiquidBG = window.LiquidBG || {
 
       /* 波の斜面を滑り落ちる + 流れに押される + 錨のばね + 水の抵抗 */
       var ax = -gx * CONFIG.FLOAT_SLIDE + fvx * CONFIG.FLOAT_FLOW;
-      var ay = gy * CONFIG.FLOAT_SLIDE - fvy * CONFIG.FLOAT_FLOW;
+      var ay =  gy * CONFIG.FLOAT_SLIDE - fvy * CONFIG.FLOAT_FLOW;
       ax += -CONFIG.FLOAT_SPRING * f.ox - CONFIG.FLOAT_DAMP * f.vx;
       ay += -CONFIG.FLOAT_SPRING * f.oy - CONFIG.FLOAT_DAMP * f.vy;
 
@@ -1042,7 +972,7 @@ window.LiquidBG = window.LiquidBG || {
       var ks = CONFIG.FLOAT_SMOOTH, cs = 2 * Math.sqrt(ks) * 0.9;
       f.vtx += ((tgy - f.tx) * ks - f.vtx * cs) * dt; f.tx += f.vtx * dt;
       f.vty += ((tgx - f.ty) * ks - f.vty * cs) * dt; f.ty += f.vty * dt;
-      f.wz += ((tgz - f.rz) * ks - f.wz * cs) * dt; f.rz += f.wz * dt;
+      f.wz  += ((tgz - f.rz) * ks - f.wz  * cs) * dt; f.rz += f.wz  * dt;
 
       f.el.style.transform =
         'translate3d(' + f.ox.toFixed(2) + 'px,' + f.oy.toFixed(2) + 'px,0)' +
@@ -1057,7 +987,7 @@ window.LiquidBG = window.LiquidBG || {
         var nx = f.vx / sp, ny = -f.vy / sp;
         var amp = -Math.min(0.05, sp * 0.00035) * CONFIG.FLOAT_WAKE;
         queueRipple(ux + nx * (f.bw * 0.5 / iw), uy + ny * (f.bh * 0.5 / ih),
-          amp, CONFIG.RIPPLE_RADIUS * 3.0, 0.01, 0);
+                    amp, CONFIG.RIPPLE_RADIUS * 3.0, 0.01, 0);
       }
       f.px = f.ox; f.py = f.oy;
     }
@@ -1272,10 +1202,6 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform2f(u.uRes, canvas.width, canvas.height);
     gl.uniform1f(u.uAspect, aspect);
     gl.uniform1f(u.uRefract, CONFIG.REFRACT);
-    gl.uniform1f(u.uOffsetClamp, CONFIG.OFFSET_CLAMP);
-    gl.uniform1f(u.uTankDepth, CONFIG.TANK_DEPTH);
-    gl.uniform1f(u.uCamSpread, CONFIG.CAM_SPREAD);
-    gl.uniform1f(u.uIor, CONFIG.WATER_IOR);
     gl.uniform1f(u.uFlow, CONFIG.FLOW_DISTORT);
     gl.uniform1f(u.uNormalScale, CONFIG.NORMAL_SCALE);
     gl.uniform1f(u.uCaustic, CONFIG.CAUSTIC);
@@ -1313,16 +1239,14 @@ window.LiquidBG = window.LiquidBG || {
   }
 
   var gRect = new Float32Array(MAXF * 4);
-  var gRot = new Float32Array(MAXF * 4);
-  var gOpt = new Float32Array(MAXF * 4);
-  var gTilt = new Float32Array(MAXF * 2);
-  var DEG2RAD = Math.PI / 180;
+  var gRot  = new Float32Array(MAXF * 4);
+  var gOpt  = new Float32Array(MAXF * 4);
 
   function renderGlass() {
     var s = canvas.width / window.innerWidth;
     var H = canvas.height;
     for (var i = 0; i < MAXF; i++) {
-      var b = i * 4, t2 = i * 2;
+      var b = i * 4;
       if (i < floaters.length && floaters[i].glass) {
         var f = floaters[i];
         var cx = (f.bx + f.ox) * s;
@@ -1333,17 +1257,11 @@ window.LiquidBG = window.LiquidBG || {
         gRot[b] = Math.cos(a); gRot[b + 1] = Math.sin(a);
         gRot[b + 2] = f.radius * s; gRot[b + 3] = 1;
         gOpt[b] = CONFIG.GLASS_THICK * s;
-        gOpt[b + 1] = 0; gOpt[b + 2] = 0;
+        gOpt[b + 1] = -f.ty * 1.6 * s;
+        gOpt[b + 2] = -f.tx * 1.6 * s;
         gOpt[b + 3] = CONFIG.GLASS_FROST;
-        /* DOM側の CSS rotateX(f.tx)/rotateY(f.ty) と同じ角度から、板全体の
-           法線オフセットを求める。これを uGTilt としてそのまま法線に混ぜる
-           ことで、屈折・映り込み・ハイライトが実際の3D傾斜と物理的に
-           矛盾なく連動する（旧実装は縁の丸まりだけが法線に効いていた）。 */
-        gTilt[t2] = -Math.sin(f.ty * DEG2RAD) * CONFIG.GLASS_TILT_GAIN;
-        gTilt[t2 + 1] = -Math.sin(f.tx * DEG2RAD) * CONFIG.GLASS_TILT_GAIN;
       } else {
         gRot[b + 3] = 0;
-        gTilt[t2] = 0; gTilt[t2 + 1] = 0;
       }
     }
 
@@ -1356,7 +1274,6 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform4fv(u.uGRect, gRect);
     gl.uniform4fv(u.uGRot, gRot);
     gl.uniform4fv(u.uGOpt, gOpt);
-    gl.uniform2fv(u.uGTilt, gTilt);
     gl.uniform1f(u.uBevel, CONFIG.GLASS_BEVEL * s);
     gl.uniform1f(u.uIor, CONFIG.GLASS_IOR);
     gl.uniform1f(u.uDisperse, CONFIG.GLASS_DISPERSE);
