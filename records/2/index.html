@@ -3,22 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>最終更新 2026/08/19</title>
+    <title>horiyouta 最終更新 2026/08/16</title>
     <link rel="icon" href="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preload" as="image" href="./data/bg.jpg" fetchpriority="high">
     <link rel="stylesheet" href="./style.css">
-    <!-- tiramisu.vrm マスコット用（トップページのみ表示。vrm-mascot.js から参照） -->
-    <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
-        "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.6/lib/three-vrm.module.js"
-      }
-    }
-    </script>
 </head>
 <body class="custom-bg min-h-screen overflow-hidden">
 
@@ -50,14 +40,6 @@
 
         <!-- Mode 0: Top Page -->
         <div id="mode-0" class="min-h-full p-6">
-
-            <!-- tiramisu.vrm マスコット（トップページ限定。画面右下からふわっと登場） -->
-            <div id="vrmStage" aria-hidden="true">
-                <!-- <div id="vrmGlow"></div> -->
-                <canvas id="vrmCanvas"></canvas>
-                <div id="vrmHud" class="is-hidden">読み込み中…</div>
-            </div>
-
             <div class="max-w-3xl mx-auto space-y-5">
                 <!-- Hero -->
                 <div class="glass-panel rounded-3xl overflow-hidden relative">
@@ -277,6 +259,5 @@
     <script src="bgm-audio.js"></script>
     <script src="./script.js"></script>
     <script src="hero-typing.js"></script>
-    <script type="module" src="./vrm-mascot.js"></script>
 </body>
 </html>
