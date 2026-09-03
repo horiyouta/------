@@ -12,51 +12,19 @@ html, body {
     overflow: hidden;
 }
 
-/* ===== Background (WebGL 読み込み前 / 非対応時のフォールバック) =====
-   以前は写真 (bg.png) を敷いていたが、背景そのものが bubble-bg.js による
-   プロシージャル生成に置き換わったため、フォールバックも画像を使わない
-   CSSグラデーションにした（ダウンロードするファイルが1つ減る）。
-   dreamy-cyber-bubbles.html 側のフォールバック配色と揃えてある。 */
+/* ===== Background (WebGL 読み込み前 / 非対応時のフォールバック) ===== */
 .custom-bg {
-    background-image:
-      radial-gradient(60% 50% at 20% 25%, rgba(255,196,150,.55), transparent 65%),
-      radial-gradient(55% 45% at 78% 30%, rgba(255,182,215,.50), transparent 66%),
-      radial-gradient(65% 55% at 55% 78%, rgba(180,166,255,.55), transparent 66%),
-      radial-gradient(60% 50% at 12% 82%, rgba(160,232,255,.50), transparent 66%),
-      linear-gradient(160deg,#1a1430,#2a2050 55%,#152036);
+    background-image: url('./data/bg.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
 }
 
-/* ===== Bubble background canvas =====
-   bubble-bg.js が固定パラメータで自動再生する背景アニメーションの描画先。
-   画面には一切表示しない「オフスクリーンのソース画像」専用レイヤーで、
-   liquid-bg.js が毎フレーム texImage2D で読み取ってテクスチャ化する。
-   実際にユーザーへ見える背景描画は #liquid 1枚だけに統一されている
-   （事前レンダリング動画・本物のシェーダ描画・その間のクロスフェードの
-   すべてを liquid-bg.js 側が「今この瞬間表示すべき画像」として合成し、
-   その1枚を水として歪ませて #liquid に描く）。 */
-#bubbleGl {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-    z-index: -3;
-    pointer-events: none;
-    visibility: hidden; /* 描画自体は続くが、画面には一切出さない */
-}
-
 /* ===== Liquid background canvas =====
-   画面に見える背景はこの1枚のみ。マウス追従の液体アニメーション・
-   クリック波紋・浮遊ガラスに加えて、bg-crossfade.js が管理する
-   window.BGCrossfade（video / crossfade / bubble のフェーズと
-   ブレンド率）に従い、事前レンダリング動画のフレーム・本描画・
-   その中間ブレンドのいずれかを「背景画像」として毎フレーム焼き直し、
-   同じ水面シェーダで歪ませて描く。DOM側のフェードは行わないため、
-   動画→実描画の切り替え中に背景が消える瞬間は原理的に発生しない。 */
+   マウス追従の液体アニメーション・クリック波紋・浮遊ガラスの描画先。
+   常に body の一番下（z-index:-1）に固定し、フォールバック画像の上に
+   フェードインする。 */
 #liquid {
     position: fixed;
     inset: 0;
@@ -64,25 +32,12 @@ html, body {
     height: 100%;
     display: block;
     z-index: -1;
+    opacity: 0;
+    transition: opacity 0.8s ease;
     touch-action: none;
     pointer-events: none; /* クリック/ドラッグは window イベントで拾うので、下の要素の操作を邪魔しない */
 }
-
-/* ===== 事前レンダリング背景動画（起動直後だけデコードされる） =====
-   画面には直接表示しない。#liquid のシェーダが毎フレームこの<video>を
-   テクスチャとして読み取り、水面越しに合成する「素材」としてのみ使う。
-   bg-crossfade.js が本描画へのクロスフェードを終えたら要素ごと除去する。 */
-#bgPreroll {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: -4;
-    display: block;
-    pointer-events: none;
-    visibility: hidden;
-}
+#liquid.ready { opacity: 1; }
 
 /* ===== Hero typing line ===== */
 .hero-type-line {

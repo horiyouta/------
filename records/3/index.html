@@ -3,18 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>最終更新 2026/09/03</title>
+    <title>最終更新 2026/08/31</title>
     <link rel="icon" href="https://uploads.scratch.mit.edu/get_image/user/63692600_128x128.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="image" href="./data/bg.jpg" fetchpriority="high">
     <link rel="stylesheet" href="./style.css">
-    <!-- 背景アニメーションの事前レンダリング設定。bubble-bg.js / bg-crossfade.js が参照する。
-         prerender_bg.py で mp4 を作り直すときは、この3つの値と必ず一致させること。 -->
-    <script>
-      window.BG_PREROLL_SECONDS = 10;   // 事前レンダリング mp4 の長さ（秒）
-      window.BG_FIXED_SEED = 20260901;  // バブル初期配置の乱数シード
-      window.BG_MANUAL_REVEAL = true;   // bg-crossfade.js が合図するまで実描画の時間を凍結する
-    </script>
     <!-- tiramisu.vrm マスコット用（トップページのみ表示。vrm-mascot.js から参照） -->
     <script type="importmap">
     {
@@ -28,22 +22,8 @@
 </head>
 <body class="custom-bg min-h-screen overflow-hidden">
 
-    <!-- 背景の実描画レイヤー。画面には表示せず、liquid-bg.js が毎フレーム
-         このcanvasをテクスチャとして読み取るための「ソース画像」専用。
-         DREAM CYBER BUBBLE を固定パラメータで自動再生する。 -->
-    <canvas id="bubbleGl" aria-hidden="true"></canvas>
-
-    <!-- 画面に見える背景はこの1枚だけ。マウス追従の流れ・クリック波紋・
-         浮遊ガラスに加えて、事前レンダリング動画→本描画のクロスフェードも
-         すべてこのcanvasの中で（window.BGCrossfade を介して）合成される。 -->
+    <!-- 液体背景（マウス追従の流れ・クリック波紋・浮遊ガラスをここに描画） -->
     <canvas id="liquid" aria-hidden="true"></canvas>
-
-    <!-- 事前レンダリング済み背景動画（起動直後だけデコードされる）。
-         画面には直接表示せず、liquid-bg.js が #liquid の背景テクスチャの
-         「素材」として読み取る。bubble-bg.js の初期化（重いシェーダ
-         コンパイル）が終わって bg-crossfade.js が本描画へ切り替えたら
-         要素ごと除去される。prerender_bg.py で生成する。 -->
-    <video id="bgPreroll" src="./assets/bg-preroll.mp4" autoplay muted loop playsinline aria-hidden="true"></video>
 
     <!-- Sidebar -->
     <nav id="sidebar" class="glass-panel fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-center px-4 gap-2">
@@ -290,19 +270,13 @@
 
     </div>
 
-    <script src="bubble-bg.js" defer></script>
-    <script src="./data.js" defer></script>
-    <script src="./data2.js" defer></script>
-    <!-- window.BGCrossfade（動画/クロスフェード/本描画のどれを背景として
-    使うか）をここで用意してから liquid-bg.js を読み込む。読み込み順が
-         前後しても liquid-bg.js 側にも同じデフォルト値を用意してあるので
-         安全だが、意図が読み取りやすいようこの順番にしている。 -->
-    <script src="bg-crossfade.js" defer></script>
-    <script src="liquid-bg.js" defer></script>
-    <script src="liquid-audio.js" defer></script>
-    <script src="bgm-audio.js" defer></script>
-    <script src="./script.js" defer></script>
-    <script src="hero-typing.js" defer></script>
+    <script src="./data.js"></script>
+    <script src="./data2.js"></script>
+    <script src="liquid-bg.js"></script>
+    <script src="liquid-audio.js"></script>
+    <script src="bgm-audio.js"></script>
+    <script src="./script.js"></script>
+    <script src="hero-typing.js"></script>
     <script type="module" src="./vrm-mascot.js"></script>
 </body>
 </html>

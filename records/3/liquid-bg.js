@@ -131,7 +131,7 @@ window.LiquidBG = window.LiquidBG || {
   /* ---------------------------------------------------------- WebGL 初期化 */
   var glParams = {
     alpha: false, depth: false, stencil: false, antialias: false,
-    premultipliedAlpha: false, preserveDrawingBuffer: !!window.BG_PRESERVE_DRAWING_BUFFER,
+    premultipliedAlpha: false, preserveDrawingBuffer: false,
     powerPreference: 'high-performance'
   };
 
@@ -790,26 +790,7 @@ window.LiquidBG = window.LiquidBG || {
     if (!ok) { disable(); throw new Error('no float render target'); }
   })();
 
-  /* ------------------------------------------------------------ 背景ソース
-     画面に見える背景は #liquid 1枚だけ。この液体シェーダが毎フレーム
-     "今この瞬間、背景として表示すべき画像" を bgTex に焼き直してから
-     水面として歪ませる。何をその画像とするかは window.BGCrossfade
-     （bg-crossfade.js が更新する { phase, mix }）が決める:
-       - phase 'video'     : #bgPreroll（事前レンダリング mp4）の現在のフレーム
-       - phase 'crossfade' : 上記の動画フレームと #bubbleGl の現在のフレームを
-                              オフスクリーンの2Dキャンバスで mix (0→1) だけ
-                              クロスディゾルブしたもの
-       - phase 'bubble'    : #bubbleGl（bubble-bg.js の本描画）の現在のフレーム
-     動画にせよ本描画にせよブレンド中にせよ、常に「1枚の完成した画像」を
-     bgTex へアップロードしてから同じ水面シェーダに渡すため、背景が
-     一瞬でも存在しない（＝真っ暗になる）フレームは原理的に発生しない。
-     どちらのソースも一時的に用意できていない場合は、直前に成功した
-     アップロード内容（GPU側のテクスチャ）がそのまま残るので、その場合も
-     黒く抜けるのではなく「最後に見えていた絵」が水面越しに残り続ける。 */
-  window.BGCrossfade = window.BGCrossfade || { phase: 'bubble', mix: 1 };
-
-  var bgVideo = document.getElementById('bgPreroll');
-
+  /* ------------------------------------------------------------ 背景画像 */
   var bgTex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, bgTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -818,87 +799,21 @@ window.LiquidBG = window.LiquidBG || {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([28, 36, 46]));
 
-  var BUBBLE_WAIT_MS = 8000;
   var bgReady = false, bgAspect = 16 / 9;
-  var bgSourceCanvas = null, bgWaitStart = performance.now(), bgGaveUp = false;
-  var blendCanvas = null, blendCtx = null;
-
-  function acquireBubbleSource() {
-    if (bgSourceCanvas || bgGaveUp) return;
-    if (window.BubbleBG && window.BubbleBG.canvas) bgSourceCanvas = window.BubbleBG.canvas;
-  }
-  acquireBubbleSource();
-
-  function uploadBgImage(source, w, h) {
-    bgAspect = w / Math.max(1, h);
+  var img = new Image();
+  img.decoding = 'async';
+  img.src = './data/bg.jpg';
+  img.onload = function () {
+    bgAspect = img.naturalWidth / Math.max(1, img.naturalHeight);
     gl.bindTexture(gl.TEXTURE_2D, bgTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    bgReady = true;
     updateCover();
-  }
-
-  /* 動画の「今のフレーム」だけをそのままアップロード */
-  function drawVideoFrame() {
-    if (!bgVideo || bgVideo.readyState < 2 || !bgVideo.videoWidth) return false;
-    uploadBgImage(bgVideo, bgVideo.videoWidth, bgVideo.videoHeight);
-    return true;
-  }
-
-  /* #bubbleGl の「今のフレーム」だけをそのままアップロード */
-  function drawBubbleFrame() {
-    acquireBubbleSource();
-    if (!bgSourceCanvas || !window.BubbleBG.ready || bgSourceCanvas.width < 2 || bgSourceCanvas.height < 2) return false;
-    uploadBgImage(bgSourceCanvas, bgSourceCanvas.width, bgSourceCanvas.height);
-    return true;
-  }
-
-  /* 動画のフレームの上に #bubbleGl のフレームを mix の不透明度で重ねて
-     オフスクリーンで合成し、その1枚をアップロードする（＝クロスフェード中
-     も常に完成済みの1枚の画像を水面シェーダへ渡せる） */
-  function drawBlendFrame(mix) {
-    acquireBubbleSource();
-    var haveVideo = bgVideo && bgVideo.readyState >= 2 && bgVideo.videoWidth;
-    var haveBubble = bgSourceCanvas && window.BubbleBG.ready && bgSourceCanvas.width >= 2 && bgSourceCanvas.height >= 2;
-    if (!haveVideo || !haveBubble) {
-      // 片方しか用意できていない場合は、それをそのまま使う
-      return drawBubbleFrame() || drawVideoFrame();
-    }
-
-    var w = bgSourceCanvas.width, h = bgSourceCanvas.height;
-    if (!blendCanvas) { blendCanvas = document.createElement('canvas'); blendCtx = blendCanvas.getContext('2d'); }
-    if (blendCanvas.width !== w || blendCanvas.height !== h) { blendCanvas.width = w; blendCanvas.height = h; }
-
-    var vw = bgVideo.videoWidth, vh = bgVideo.videoHeight;
-    var scale = Math.max(w / vw, h / vh);
-    var dw = vw * scale, dh = vh * scale;
-
-    blendCtx.globalAlpha = 1;
-    blendCtx.drawImage(bgVideo, (w - dw) / 2, (h - dh) / 2, dw, dh);
-    blendCtx.globalAlpha = Math.max(0, Math.min(1, mix));
-    blendCtx.drawImage(bgSourceCanvas, 0, 0, w, h);
-    blendCtx.globalAlpha = 1;
-
-    uploadBgImage(blendCanvas, w, h);
-    return true;
-  }
-
-  /* 毎フレーム呼ばれる：window.BGCrossfade の phase に応じて「今表示すべき
-     1枚」を選び、bgTex に焼き直す。目的のソースがまだ揃っていない時は
-     使えるほうへ自動フォールバックするので、背景が消えることはない。 */
-  function updateBgTexture() {
-    var cf = window.BGCrossfade || { phase: 'bubble', mix: 1 };
-    var ok;
-    if (cf.phase === 'video') ok = drawVideoFrame() || drawBubbleFrame();
-    else if (cf.phase === 'crossfade') ok = drawBlendFrame(cf.mix);
-    else ok = drawBubbleFrame() || drawVideoFrame();
-
-    if (!ok) {
-      if (!bgGaveUp && performance.now() - bgWaitStart > BUBBLE_WAIT_MS) { bgGaveUp = true; }
-      return;
-    }
-    if (!bgReady) { bgReady = true; dropAt(0.5, 0.62, 0.30); }
-  }
+    dropAt(0.5, 0.62, 0.30);
+  };
+  img.onerror = function () { disable(); };
 
   /* ------------------------------------------------------------- リサイズ */
   var velocity, pressure, divergence, curlFBO, ripple;
@@ -1506,7 +1421,6 @@ window.LiquidBG = window.LiquidBG || {
     while (acc >= STEP && st < 3) { step(STEP); acc -= STEP; st++; }
     if (acc > STEP * 3) acc = 0;
 
-    updateBgTexture();
     draw();
     if (glassOK) probePass(); /* 音響センサー用にフローターが無くても毎フレーム実行 */
 
