@@ -792,24 +792,14 @@ window.LiquidBG = window.LiquidBG || {
 
   /* ------------------------------------------------------------ 背景ソース
      画面に見える背景は #liquid 1枚だけ。この液体シェーダが毎フレーム
-     "今この瞬間、背景として表示すべき画像" を bgTex に焼き直してから
-     水面として歪ませる。何をその画像とするかは window.BGCrossfade
-     （bg-crossfade.js が更新する { phase, mix }）が決める:
-       - phase 'video'     : #bgPreroll（事前レンダリング mp4）の現在のフレーム
-       - phase 'crossfade' : 上記の動画フレームと #bubbleGl の現在のフレームを
-                              オフスクリーンの2Dキャンバスで mix (0→1) だけ
-                              クロスディゾルブしたもの
-       - phase 'bubble'    : #bubbleGl（bubble-bg.js の本描画）の現在のフレーム
-     動画にせよ本描画にせよブレンド中にせよ、常に「1枚の完成した画像」を
-     bgTex へアップロードしてから同じ水面シェーダに渡すため、背景が
-     一瞬でも存在しない（＝真っ暗になる）フレームは原理的に発生しない。
-     どちらのソースも一時的に用意できていない場合は、直前に成功した
-     アップロード内容（GPU側のテクスチャ）がそのまま残るので、その場合も
-     黒く抜けるのではなく「最後に見えていた絵」が水面越しに残り続ける。 */
-  window.BGCrossfade = window.BGCrossfade || { phase: 'bubble', mix: 1 };
-
-  var bgVideo = document.getElementById('bgPreroll');
-
+     #bubbleGl（bubble-bg.js の本描画）の "今この瞬間のフレーム" を
+     bgTex に焼き直してから水面として歪ませる。
+     以前は事前レンダリング動画とのクロスフェード（window.BGCrossfade）を
+     経由していたが、その仕組みは廃止したので常に #bubbleGl を直接読む。
+     #bubbleGl 側の準備がまだの間は、直前に成功したアップロード内容
+     （GPU側のテクスチャ）がそのまま残るので、黒く抜けるのではなく
+     初期化用のプレースホルダ色（下の texImage2D）がそのまま水面越しに
+     見え続けるだけで済む。 */
   var bgTex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, bgTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -821,7 +811,6 @@ window.LiquidBG = window.LiquidBG || {
   var BUBBLE_WAIT_MS = 8000;
   var bgReady = false, bgAspect = 16 / 9;
   var bgSourceCanvas = null, bgWaitStart = performance.now(), bgGaveUp = false;
-  var blendCanvas = null, blendCtx = null;
 
   function acquireBubbleSource() {
     if (bgSourceCanvas || bgGaveUp) return;
@@ -838,13 +827,6 @@ window.LiquidBG = window.LiquidBG || {
     updateCover();
   }
 
-  /* 動画の「今のフレーム」だけをそのままアップロード */
-  function drawVideoFrame() {
-    if (!bgVideo || bgVideo.readyState < 2 || !bgVideo.videoWidth) return false;
-    uploadBgImage(bgVideo, bgVideo.videoWidth, bgVideo.videoHeight);
-    return true;
-  }
-
   /* #bubbleGl の「今のフレーム」だけをそのままアップロード */
   function drawBubbleFrame() {
     acquireBubbleSource();
@@ -853,46 +835,11 @@ window.LiquidBG = window.LiquidBG || {
     return true;
   }
 
-  /* 動画のフレームの上に #bubbleGl のフレームを mix の不透明度で重ねて
-     オフスクリーンで合成し、その1枚をアップロードする（＝クロスフェード中
-     も常に完成済みの1枚の画像を水面シェーダへ渡せる） */
-  function drawBlendFrame(mix) {
-    acquireBubbleSource();
-    var haveVideo = bgVideo && bgVideo.readyState >= 2 && bgVideo.videoWidth;
-    var haveBubble = bgSourceCanvas && window.BubbleBG.ready && bgSourceCanvas.width >= 2 && bgSourceCanvas.height >= 2;
-    if (!haveVideo || !haveBubble) {
-      // 片方しか用意できていない場合は、それをそのまま使う
-      return drawBubbleFrame() || drawVideoFrame();
-    }
-
-    var w = bgSourceCanvas.width, h = bgSourceCanvas.height;
-    if (!blendCanvas) { blendCanvas = document.createElement('canvas'); blendCtx = blendCanvas.getContext('2d'); }
-    if (blendCanvas.width !== w || blendCanvas.height !== h) { blendCanvas.width = w; blendCanvas.height = h; }
-
-    var vw = bgVideo.videoWidth, vh = bgVideo.videoHeight;
-    var scale = Math.max(w / vw, h / vh);
-    var dw = vw * scale, dh = vh * scale;
-
-    blendCtx.globalAlpha = 1;
-    blendCtx.drawImage(bgVideo, (w - dw) / 2, (h - dh) / 2, dw, dh);
-    blendCtx.globalAlpha = Math.max(0, Math.min(1, mix));
-    blendCtx.drawImage(bgSourceCanvas, 0, 0, w, h);
-    blendCtx.globalAlpha = 1;
-
-    uploadBgImage(blendCanvas, w, h);
-    return true;
-  }
-
-  /* 毎フレーム呼ばれる：window.BGCrossfade の phase に応じて「今表示すべき
-     1枚」を選び、bgTex に焼き直す。目的のソースがまだ揃っていない時は
-     使えるほうへ自動フォールバックするので、背景が消えることはない。 */
+  /* 毎フレーム呼ばれる：#bubbleGl の準備ができ次第、その内容を bgTex に焼き直す。
+     まだ準備できていない間は何もせず、直前にアップロード済みの内容
+     （初期化直後はプレースホルダ色）がそのまま残る。 */
   function updateBgTexture() {
-    var cf = window.BGCrossfade || { phase: 'bubble', mix: 1 };
-    var ok;
-    if (cf.phase === 'video') ok = drawVideoFrame() || drawBubbleFrame();
-    else if (cf.phase === 'crossfade') ok = drawBlendFrame(cf.mix);
-    else ok = drawBubbleFrame() || drawVideoFrame();
-
+    var ok = drawBubbleFrame();
     if (!ok) {
       if (!bgGaveUp && performance.now() - bgWaitStart > BUBBLE_WAIT_MS) { bgGaveUp = true; }
       return;

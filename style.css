@@ -51,12 +51,8 @@ html, body {
 
 /* ===== Liquid background canvas =====
    画面に見える背景はこの1枚のみ。マウス追従の液体アニメーション・
-   クリック波紋・浮遊ガラスに加えて、bg-crossfade.js が管理する
-   window.BGCrossfade（video / crossfade / bubble のフェーズと
-   ブレンド率）に従い、事前レンダリング動画のフレーム・本描画・
-   その中間ブレンドのいずれかを「背景画像」として毎フレーム焼き直し、
-   同じ水面シェーダで歪ませて描く。DOM側のフェードは行わないため、
-   動画→実描画の切り替え中に背景が消える瞬間は原理的に発生しない。 */
+   クリック波紋・浮遊ガラスに加えて、#bubbleGl の現在のフレームを
+   毎フレーム焼き直し、同じ水面シェーダで歪ませて描く。 */
 #liquid {
     position: fixed;
     inset: 0;
@@ -66,22 +62,6 @@ html, body {
     z-index: -1;
     touch-action: none;
     pointer-events: none; /* クリック/ドラッグは window イベントで拾うので、下の要素の操作を邪魔しない */
-}
-
-/* ===== 事前レンダリング背景動画（起動直後だけデコードされる） =====
-   画面には直接表示しない。#liquid のシェーダが毎フレームこの<video>を
-   テクスチャとして読み取り、水面越しに合成する「素材」としてのみ使う。
-   bg-crossfade.js が本描画へのクロスフェードを終えたら要素ごと除去する。 */
-#bgPreroll {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: -4;
-    display: block;
-    pointer-events: none;
-    visibility: hidden;
 }
 
 /* ===== Hero typing line ===== */

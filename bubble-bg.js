@@ -9,9 +9,17 @@
    かき混ぜる、という二重構造の一番奥のレイヤーになる。
 
    画面には一切表示されないオフスクリーンのソースレイヤーで、liquid-bg.js が
-   毎フレーム #bubbleGl をテクスチャとして読み取り、事前レンダリング動画・
-   クロスフェード・本描画のいずれであっても常に1枚の背景画像として水面
-   シェーダに渡す（#liquid だけが実際に画面へ描かれる）。
+   毎フレーム #bubbleGl をテクスチャとして読み取り、水面シェーダに渡す
+   （#liquid だけが実際に画面へ描かれる）。
+
+   以前は「事前レンダリングした mp4 を最初に見せている間に、この裏で
+   重いシェーダコンパイルを済ませる」という事前レンダリング動画＋
+   クロスフェード方式（bg-crossfade.js）を使っていたが、実測したところ
+   このスクリプト自体の初期化は動画の長さ(10秒)よりずっと短く終わって
+   おり、逆に動画ファイルのダウンロード/デコードが初期表示の帯域・
+   メインスレッドを奪って全体を遅くしていた。そのため事前レンダリング
+   動画・クロスフェードの仕組みは完全に廃止し、boot() が終わり次第
+   即座に実描画を開始する、以前よりシンプルな方式に戻した。
 
    固定パラメータ（もう調整しない。将来値を変える場合はここだけ触ればよい）:
      exposure=0.4805  saturation=1.1722 bloom=1.1666    hueBias=0.0036
@@ -656,29 +664,12 @@ const params = {
 const toggles = { rotate: true, lines: true, dust: true, paused: false };
 
 /* ============================================================
-   7b. 事前レンダリング mp4 とのフレーム同期に使う設定
+   7b. 初期配置の乱数シード
    ------------------------------------------------------------
-   - FIXED_SEED   : バブル初期配置の乱数シード。prerender_bg.py 側の
-                    仮想クロック init script にも同じ値を渡すことで、
-                    毎回まったく同じ初期状態から始まる「決定論的な」
-                    シミュレーションになる（window.BG_FIXED_SEED で
-                    上書き可能。両者で必ず同じ値を使うこと）。
-   - PREROLL_SECONDS : 事前レンダリング mp4 の長さ（秒）。ホームページ側
-                    では起動直後にこの秒数ぶんだけ物理演算を「早送り」
-                    してから、動画の最後のフレームと同じ状態で実描画を
-                    開始する（window.BG_PREROLL_SECONDS で上書き可能）。
-   - FF_STEP      : 早送り積分の固定タイムステップ。60fpsを仮定。
-                    prerender_bg.py 側の --fps と必ず一致させること。
-   - MANUAL_REVEAL: true の場合、初期化直後には描画時間を進めず
-                    window.BubbleBG.beginReveal() が呼ばれるまで凍結する
-                    （index.html の bg-crossfade.js が担当）。false の
-                    場合は従来どおり読み込み次第すぐ実時間で動き出す
-                    （prerender_bg.py の録画用ハーネスはこちらを使う）。
+   バブル初期配置の乱数シード。prerender_bg.py など他のハーネス側と
+   揃えたい場合のために window.BG_FIXED_SEED で上書き可能にしてある。
    ============================================================ */
-const FIXED_SEED      = (typeof window.BG_FIXED_SEED === 'number') ? window.BG_FIXED_SEED : 20260901;
-const PREROLL_SECONDS = (typeof window.BG_PREROLL_SECONDS === 'number') ? window.BG_PREROLL_SECONDS : 10;
-const FF_STEP  = 1/60;
-const MANUAL_REVEAL = !!window.BG_MANUAL_REVEAL;
+const FIXED_SEED = (typeof window.BG_FIXED_SEED === 'number') ? window.BG_FIXED_SEED : 20260901;
 
 initBubbles(params.count, FIXED_SEED);
 
@@ -889,49 +880,18 @@ document.addEventListener('visibilitychange', function(){
 resize();
 
 /* ============================================================
-   11. 事前レンダリング mp4 との同期起動
+   11. 起動
    ------------------------------------------------------------
-   MANUAL_REVEAL が false（既定・録画用ハーネスなど）の場合は、
-   これまでどおり読み込み次第すぐ実時間で動き出す。
-
-   MANUAL_REVEAL が true（本番ページ）の場合は:
-     1. PREROLL_SECONDS 秒ぶんの物理演算だけを、描画を挟まず
-        固定タイムステップ(FF_STEP)で一気に「早送り」する
-        （= 事前レンダリング mp4 が作られたときと同じ積分方法・
-        同じ長さなので、mp4 の最終フレームと同じ状態になる）。
-     2. その状態のまま1フレームだけ実際にGL描画し、
-        window.BubbleBG.ready を立てる（＝bg-crossfade.js は
-        「本物の初期化が完了した」ことをこれで検知できる）。
-     3. ただしここではまだ requestAnimationFrame ループを開始せず
-        時間を凍結したままにしておく。bg-crossfade.js が動画の
-        最低表示時間(10秒)を経過したと判断してから
-        window.BubbleBG.beginReveal() を呼ぶことで、その瞬間の
-        performance.now() を起点に simTime = PREROLL_SECONDS から
-        リアルタイムでカウントを再開する。これにより「動画が
-        止まった瞬間の経過時間」と「実描画が動き出す瞬間の
-        経過時間」が一致し、クロスフェードの前後で継ぎ目のない
-        アニメーションになる。
+   以前はここで「事前レンダリング mp4 の長さぶん物理演算を早送りし、
+   bg-crossfade.js から beginReveal() が呼ばれるまで時間を凍結する」
+   処理を挟んでいたが、事前レンダリング動画そのものを廃止したため、
+   boot() が終わり次第すぐ実時間でアニメーションループを開始する。
+   window.BubbleBG.ready は最初の renderPass() が終わった時点
+   （frame() の初回呼び出し内）で自動的に立つので、liquid-bg.js は
+   それを検知した瞬間から #bubbleGl を背景として読み取り始める。
    ============================================================ */
-let revealed = false;
-if(MANUAL_REVEAL){
-  let t = 0;
-  while(t < PREROLL_SECONDS){
-    const step = Math.min(FF_STEP, PREROLL_SECONDS - t);
-    stepBubbles(step, t);
-    t += step;
-  }
-  simTime = PREROLL_SECONDS;
-  renderPass(0); // 早送り後の状態を1フレームだけ描画（ready を立てるため）
-
-  window.BubbleBG.beginReveal = function(){
-    if(revealed) return;
-    revealed = true;
-    startLoop();
-  };
-}else{
-  revealed = true;
-  startLoop();
-}
+let revealed = true;
+startLoop();
 
 } /* end boot() */
 
