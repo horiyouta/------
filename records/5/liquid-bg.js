@@ -69,21 +69,21 @@ window.LiquidBG = window.LiquidBG || {
        視差分は差し引くので、水面が完全に平らな場所は常に元画像と一致し、
        波が立った場所・画面端に近いほど「水槽を覗き込む」歪みが強く出る。 */
     REFRACT: 1.00,      // 屈折オフセット全体の強さ（芸術的な最終ゲイン）
-    OFFSET_CLAMP: 0.085,     // 上限を下げる＝シャボン玉の輪郭が波でにじむのを防ぐ
-    TANK_DEPTH: 0.50,      // 水底までの«深さ»。浅くして歪みを抑え、玉のシャープさを守る
-    CAM_SPREAD: 0.75,      // 疑似カメラのFOVに相当。画面端の伸びを控えめに
+    OFFSET_CLAMP: 0.11,      // オフセット量の上限（波が尖った時の破綻防止）
+    TANK_DEPTH: 0.62,      // 水底までの«深さ»（UV相当単位）。大きいほど厚みのある水槽に見える
+    CAM_SPREAD: 0.85,      // 疑似カメラのFOVに相当。大きいほど画面端で壁を覗き込む歪みが強まる
     WATER_IOR: 1.333,     // 水の屈折率（実際の水とほぼ同じ値）
     FLOW_DISTORT: 0.000055,
-    NORMAL_SCALE: 1.45,
-    CAUSTIC: 0.95,      // 集光。明るい «白い筋» が増えるので imgB 寄りになる
-    SPECULAR: 0.64,      // 平面成分を差し引いた «増加分だけ» を加算
+    NORMAL_SCALE: 1.7,
+    CAUSTIC: 0.85,      // 集光。高さ場のヘッシアン行列式から求める«本物»寄りの集光近似
+    SPECULAR: 0.55,      // 平面成分を差し引いた «増加分だけ» を加算
     SHININESS: 52.0,
-    FRESNEL: 0.11,      // 青い膜が全体に乗って «くすむ» のを抑える
-    WATER_ABSORB: 0.20,      // 谷が暗く沈みすぎると眠くなるので弱める
-    FOAM_OPACITY: 0.34,
-    SHARPEN: 0.32,      // 元テクセル基準のアンシャープ。v3 の高解像度背景に合わせて強化
-    SATURATION: 1.10,      // 1.0 = 元画像どおり
-    BRIGHTNESS: 1.02,      // 1.0 = 元画像どおり
+    FRESNEL: 0.16,      // Schlickの式で求めた本物のフレネル反射率に掛かるゲイン
+    WATER_ABSORB: 0.34,      // Beer-Lambert風の深み吸光。波の谷だけ暗く青緑へ沈む（平らなら寄与0）
+    FOAM_OPACITY: 0.30,
+    SHARPEN: 0.16,      // 縮小リサンプルで失われる解像感の回復（0 で無効）
+    SATURATION: 1.06,      // 1.0 = 元画像どおり
+    BRIGHTNESS: 1.00,      // 1.0 = 元画像どおり
     AUTO_DROPS: true,
 
     /* --- 浮遊要素の物理 --- */
@@ -380,7 +380,6 @@ window.LiquidBG = window.LiquidBG || {
     'uniform float uAspect, uRefract, uFlow, uNormalScale, uCaustic;',
     'uniform float uSpecular, uShininess, uFresnel, uFoamOpacity;',
     'uniform float uSharpen, uSaturation, uBrightness, uFinal, uAbsorb;',
-    'uniform vec2 uBgTexel;',
     'uniform float uTankDepth, uCamSpread, uIor, uOffsetClamp;',
     '',
     'vec2 bgUv(vec2 uv){ return (uv - 0.5) * uCover + 0.5; }',
@@ -426,9 +425,7 @@ window.LiquidBG = window.LiquidBG || {
     '  col.b = texture2D(uBg, bgUv(vUv + off * 0.955)).b;',
     '',
     '  if (uSharpen > 0.0) {',
-    '    /* 背景テクスチャ 1 テクセル分を基準に取る。画面解像度基準だと',
-    '       «拡大された補間値» を尖らせるだけで実際のディテールは戻らない。 */',
-    '    vec2 st = max(uBgTexel, uCover / uRes) * 1.15;',
+    '    vec2 st = uCover / uRes * 1.25;',
     '    vec2 b = bgUv(vUv + off);',
     '    vec3 lo = texture2D(uBg, b + st).rgb + texture2D(uBg, b - st).rgb',
     '            + texture2D(uBg, b + vec2(st.x, -st.y)).rgb + texture2D(uBg, b + vec2(-st.x, st.y)).rgb;',
@@ -813,7 +810,6 @@ window.LiquidBG = window.LiquidBG || {
 
   var BUBBLE_WAIT_MS = 8000;
   var bgReady = false, bgAspect = 16 / 9;
-  var bgTexW = 1, bgTexH = 1;   /* 現在 GPU 上にある bgTex の実サイズ */
   var bgSourceCanvas = null, bgWaitStart = performance.now(), bgGaveUp = false;
 
   function acquireBubbleSource() {
@@ -826,15 +822,7 @@ window.LiquidBG = window.LiquidBG || {
     bgAspect = w / Math.max(1, h);
     gl.bindTexture(gl.TEXTURE_2D, bgTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    /* 解像度が変わっていないフレームは texSubImage2D で «中身だけ» 差し替える。
-       texImage2D は毎回テクスチャを再確保するので、背景が高解像度になった v3 では
-       この差が効く（1900x950 で約 5MB/frame の再確保を回避）。 */
-    if (w === bgTexW && h === bgTexH) {
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGB, gl.UNSIGNED_BYTE, source);
-    } else {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
-      bgTexW = w; bgTexH = h;
-    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     updateCover();
   }
@@ -1329,7 +1317,6 @@ window.LiquidBG = window.LiquidBG || {
     gl.uniform1f(u.uAbsorb, CONFIG.WATER_ABSORB);
     gl.uniform1f(u.uFoamOpacity, CONFIG.FOAM_OPACITY);
     gl.uniform1f(u.uSharpen, CONFIG.SHARPEN);
-    gl.uniform2f(u.uBgTexel, 1 / Math.max(1, bgTexW), 1 / Math.max(1, bgTexH));
     gl.uniform1f(u.uSaturation, CONFIG.SATURATION);
     gl.uniform1f(u.uBrightness, CONFIG.BRIGHTNESS);
     gl.uniform1f(u.uFinal, final ? 1 : 0);
