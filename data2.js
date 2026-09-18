@@ -1,10 +1,10 @@
 // ===== ボーカル定義 =====
 // index: 0=ティラミス, 1=タルト, 2=よもぎ, 3=だいふく
 const VOCALS = [
-    { name: 'ティラミス', icon: './data/1.png' },
-    { name: 'タルト',     icon: './data/2.png' },
-    { name: 'よもぎ',     icon: './data/3.png' },
-    { name: 'だいふく',   icon: './data/4.png' },
+    { name: 'ティラミス', icon: './data/1.jpg' },
+    { name: 'タルト',     icon: './data/2.jpg' },
+    { name: 'よもぎ',     icon: './data/3.jpg' },
+    { name: 'だいふく',   icon: './data/4.jpg' },
 ];
 
 // ===== 楽曲データ =====
