@@ -15,7 +15,7 @@ window.BGMAudio = (function () {
     'use strict';
 
     var CONFIG = {
-        URL:            './data/bgm.mp3',
+        URL:            'https://horiyouta-homepage.netlify.app/data/bgm.mp3',
         VOLUME:         0.28,   // 通常時の目標音量
         FADE_IN_MS:     1500,   // 初回再生時のフェードイン
         CROSSFADE:      1.5,    // ループ継ぎ目のクロスフェード秒数（素材の長さに応じて自動クランプ）

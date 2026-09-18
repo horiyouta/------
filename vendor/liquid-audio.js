@@ -24,8 +24,8 @@ window.LiquidAudio = (function () {
      CONFIG — ここで音の感度・音色を調整
      ============================================================ */
   var CONFIG = {
-    INDEX_URL:      './data/sound_index.json',
-    AUDIO_URL:      './data/sound.mp3',
+    INDEX_URL:      'https://horiyouta-homepage.netlify.app/data/sound_index.json',
+    AUDIO_URL:      'https://horiyouta-homepage.netlify.app/data/sound.mp3',
 
     GRAIN_INTERVAL: 40,     // ms。この周期でフレーム(粒)を再生判定
     GRAIN_MIN:      0.02,   // strength がこれ未満なら無音
