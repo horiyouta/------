@@ -71,6 +71,7 @@
     initPageRouter();
     initToggleChips();
     initButtons();
+    initCardsFluid();
     initSelects();
     initTables();
     initAudioElements();
@@ -83,7 +84,7 @@
 
   function refresh() {
     initLayout(); initSidebars(); initPopovers(); initToastRegions();
-    initPageRouter(); initToggleChips(); initButtons(); initSelects();
+    initPageRouter(); initToggleChips(); initButtons(); initCardsFluid(); initSelects();
     initTables(); initAudioElements(); initLiquidSyncClasses();
   }
 
@@ -490,21 +491,34 @@
   }
 
   /* ==========================================================================
-     11. button: fluid physics (ported from fluid-button.html)
+     11. button / card: fluid physics (ported from fluid-button.html)
      --------------------------------------------------------------------------
      半陰的オイラー法によるバネ+粘性の連続ソルバ。ホバー/プレスで q が目標値へ
-     近づき、毛細管波モードが角の丸みを揺らす。元デモの主要パラメータをそのまま
-     移植しつつ、汎用コンポーネント向けに単純化。
+     近づき、毛細管波モードが角の丸みを揺らす。ボタン用とカード用で別プロファイルを
+     使い分ける: ボタンは最大変化量を抑えめに、カードはボタンより速く・小さく揺れる
+     ように調整してある。
      ========================================================================== */
-  var FB_P = {
+  var FB_P_BUTTON = {
     H: 1 / 240, MAXSUB: 14, DT_CAP: 0.05,
-    W0: 17.5, ZETA: 0.36, BETA: 16.0, ALPHA: 90.0,
-    Q_HOVER: 0.055, Q_PRESS: -0.035, QMAX: 0.11,
-    AG_GAIN: 0.8, AG_TAU: 0.42, AG_NU: 2.2, AG_MAX: 3.0,
-    STRETCH: 0.22, STRETCH_TAU: 0.06,
-    CAP: 100, NUK: 2.2, TRIAD: 2.0, RMAX: 0.22, R0: 16,
-    OU_TAU: 0.12, OU_HOVER: 120, OU_IDLE: 30,
+    W0: 19.0, ZETA: 0.42, BETA: 20.0, ALPHA: 70.0,
+    Q_HOVER: 0.032, Q_PRESS: -0.020, QMAX: 0.065,
+    AG_GAIN: 0.8, AG_TAU: 0.38, AG_NU: 2.0, AG_MAX: 3.0,
+    STRETCH: 0.14, STRETCH_TAU: 0.05,
+    CAP: 120, NUK: 2.6, TRIAD: 1.8, RMAX: 0.13, R0: 16,
+    OU_TAU: 0.12, OU_HOVER: 70, OU_IDLE: 16,
     ADV: 13.0
+  };
+  /* カード用: ボタンより自然振動数(W0)を高く・減衰(ZETA/BETA)を強くして素早く収束させ、
+     振幅(QMAX/RMAX)とノイズ(OU_*)を小さく抑えることで「速いけれど控えめ」な揺れにする。 */
+  var FB_P_CARD = {
+    H: 1 / 240, MAXSUB: 14, DT_CAP: 0.05,
+    W0: 34.0, ZETA: 0.55, BETA: 40.0, ALPHA: 60.0,
+    Q_HOVER: 0.030, Q_PRESS: -0.020, QMAX: 0.05,
+    AG_GAIN: 0.8, AG_TAU: 0.22, AG_NU: 2.0, AG_MAX: 3.0,
+    STRETCH: 0.10, STRETCH_TAU: 0.035,
+    CAP: 260, NUK: 3.4, TRIAD: 1.6, RMAX: 0.10, R0: 16,
+    OU_TAU: 0.08, OU_HOVER: 55, OU_IDLE: 12,
+    ADV: 20.0
   };
   var fbGaussSpare = null;
   function fbGauss() {
@@ -515,15 +529,22 @@
     fbGaussSpare = v * m; return u * m;
   }
 
-  function FluidButton(el) {
+  function FluidButton(el, params) {
+    this.P = params || FB_P_BUTTON;
     this.el = el;
     this.label = qs('.yg-btn-label', el);
     this.q = 0; this.v = 0; this.target = 0;
     this.e = 0; this.agit = 0;
     this.px = 0.5; this.py = 0.5; this.gx = 0.5; this.gy = 0.5;
     this.hover = false; this.press = false; this.awake = false; this.acc = 0;
+    /* 静止時の角丸は要素自身の CSS 値を基準にする（ボタン=16px, カード=22px など
+       トークンが変わっても一致するように、固定値ではなく実測する） */
+    var cs = getComputedStyle(el);
+    var r0 = parseFloat(cs.borderTopLeftRadius);
+    this.R0 = (isFinite(r0) && r0 > 0) ? r0 : this.P.R0;
+    var self = this;
     this.modes = [2, 3, 4].map(function (n) {
-      return { n: n, w: Math.sqrt(FB_P.CAP * n * n * n), g: FB_P.NUK * n * n, a: 0, ad: 0, ou: 0 };
+      return { n: n, w: Math.sqrt(self.P.CAP * n * n * n), g: self.P.NUK * n * n, a: 0, ad: 0, ou: 0 };
     });
     this.bind();
     this.render();
@@ -544,7 +565,7 @@
   };
   FluidButton.prototype.wake = function () { this.awake = true; FBLoop.start(); };
   FluidButton.prototype.step = function (h) {
-    var P = FB_P, nuMul = 1 + P.AG_NU * this.agit;
+    var P = this.P, nuMul = 1 + P.AG_NU * this.agit;
     this.target = this.hover ? (this.press ? P.Q_PRESS : P.Q_HOVER) : 0;
     var d = this.q - this.target, k = P.W0 * P.W0;
     var acc = -k * d * (1 + P.ALPHA * d * d) - 2 * P.ZETA * P.W0 * nuMul * this.v - P.BETA * this.v * Math.abs(this.v);
@@ -567,12 +588,12 @@
     this.agit -= this.agit * h / P.AG_TAU; if (this.agit < 1e-4) this.agit = 0;
   };
   FluidButton.prototype.render = function () {
-    var P = FB_P;
+    var P = this.P;
     var s = 1 + P.QMAX * Math.tanh(this.q / P.QMAX);
     var e = this.e, sx = s * Math.exp(e), sy = s * Math.exp(-e);
     this.el.style.transform = 'scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
     if (this.label) this.label.style.transform = 'scale(' + Math.exp(-e * 0.6).toFixed(4) + ',' + Math.exp(e * 0.6).toFixed(4) + ')';
-    var R = P.R0, th = [2.356, 0.785, -0.785, -2.356], rx = [], ry = [];
+    var R = this.R0, th = [2.356, 0.785, -0.785, -2.356], rx = [], ry = [];
     for (var i = 0; i < 4; i++) {
       var dA = 0, dB = 0;
       for (var j = 0; j < this.modes.length; j++) {
@@ -603,13 +624,13 @@
   };
   FluidButton.prototype.advance = function (dt) {
     if (REDUCED) {
-      this.target = this.hover ? (this.press ? FB_P.Q_PRESS : FB_P.Q_HOVER) : 0;
+      this.target = this.hover ? (this.press ? this.P.Q_PRESS : this.P.Q_HOVER) : 0;
       this.q += (this.target - this.q) * (1 - Math.exp(-dt * 12));
       this.render(); this.awake = Math.abs(this.q - this.target) > 1e-4; return;
     }
     this.acc += dt; var n = 0;
-    while (this.acc >= FB_P.H && n < FB_P.MAXSUB) { this.step(FB_P.H); this.acc -= FB_P.H; n++; }
-    if (n >= FB_P.MAXSUB) this.acc = 0;
+    while (this.acc >= this.P.H && n < this.P.MAXSUB) { this.step(this.P.H); this.acc -= this.P.H; n++; }
+    if (n >= this.P.MAXSUB) this.acc = 0;
     this.render();
     if (this.settled()) { this.rest(); this.awake = false; }
   };
@@ -622,7 +643,7 @@
       requestAnimationFrame(FBLoop.tick);
     },
     tick: function (now) {
-      var dt = Math.min((now - FBLoop.last) / 1000, FB_P.DT_CAP);
+      var dt = Math.min((now - FBLoop.last) / 1000, 0.05);
       FBLoop.last = now;
       var alive = false;
       FBLoop.items.forEach(function (it) { if (it.awake) { it.advance(dt); alive = alive || it.awake; } });
@@ -649,7 +670,23 @@
         });
         btn.appendChild(label);
       }
-      var fb = new FluidButton(btn);
+      var fb = new FluidButton(btn, FB_P_BUTTON);
+      FBLoop.add(fb);
+    });
+  }
+
+  /* ==========================================================================
+     11-b. card hover: same solver as buttons, tuned faster & subtler
+     --------------------------------------------------------------------------
+     .yg-glass-hover にホバー/プレスで反応する流体物理を付与する。ボタンより
+     自然振動数を高く・減衰を強く・振幅を小さくしてあるので、素早く小さく
+     「ぷるっ」と反応してすぐ落ち着く。sheen/label のラップは行わない
+     （カードは装飾を持たないシンプルな div のため）。
+     ========================================================================== */
+  function initCardsFluid() {
+    qsa('.yg-glass-hover:not([data-yg-no-physics])').forEach(function (card) {
+      if (card.__ygFluidCard) return; card.__ygFluidCard = true;
+      var fb = new FluidButton(card, FB_P_CARD);
       FBLoop.add(fb);
     });
   }

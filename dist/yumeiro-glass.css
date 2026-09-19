@@ -107,8 +107,23 @@
   font-family: var(--yg-font);
   color: var(--yg-ink);
   -webkit-tap-highlight-color: transparent;
+  /* 背景の液体をマウスでドラッグしてかき混ぜる操作と、テキスト選択が競合しないよう
+     既定でテキスト選択をオフにする。入力欄・編集可能セル・.yg-selectable は個別に復元。 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
 }
 [data-yg-root] ::selection{ background: rgba(219,140,220,.30); color: inherit; }
+
+/* --- 選択オフの例外: フォーム入力・編集中セル・明示的にオプトインした要素 --- */
+[data-yg-root] input:not([type="checkbox"]):not([type="radio"]),
+[data-yg-root] textarea,
+[data-yg-root] [contenteditable="true"],
+[data-yg-root] .yg-selectable{
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
 
 .yg-scrollbar, [data-yg-root]{
   scrollbar-width: thin;
@@ -134,14 +149,19 @@
   box-shadow: var(--yg-shadow-sm), var(--yg-inset-hi);
   backdrop-filter: blur(var(--yg-glass-blur)) saturate(var(--yg-glass-sat));
   -webkit-backdrop-filter: blur(var(--yg-glass-blur)) saturate(var(--yg-glass-sat));
-  transition: transform var(--yg-dur) var(--yg-ease), box-shadow var(--yg-dur) var(--yg-ease), background var(--yg-dur) var(--yg-ease);
+  /* transform はここでは扱わない: .yg-glass-hover は yumeiro-glass.js の流体物理が
+     フレームごとに直接 el.style.transform / borderRadius を更新するため、CSS の
+     トランジションを重ねると二重に鈍って反応が遅く見える。 */
+  transition: box-shadow var(--yg-dur-fast) var(--yg-ease), background var(--yg-dur-fast) var(--yg-ease);
 }
 .yg-glass{ background: var(--yg-glass-bg); }
 .yg-glass-strong{ background: var(--yg-glass-bg-strong); }
 .yg-glass-soft{ background: var(--yg-glass-bg-soft); box-shadow: none; }
 
+/* .yg-glass-hover の transform / border-radius は yumeiro-glass.js（流体物理、
+   fluid-button.html 由来のソルバをボタンより速く・小さく調整したもの）が担当する。 */
+.yg-glass-hover{ will-change: transform, border-radius; transform-origin: 50% 50%; }
 .yg-glass-hover:hover{
-  transform: translateY(-3px) scale(1.012);
   background: var(--yg-glass-bg-strong);
   box-shadow: var(--yg-shadow-lg), var(--yg-inset-hi);
 }
@@ -238,8 +258,16 @@ body.yg-gl-glass [data-yg-glass-sync]{
 [data-yg-sidebar].yg-glass{ border-radius: 0; }
 .yg-sidebar-inner{
   display: flex; align-items: center; gap: 10px; width: 100%;
+  position: relative; /* メニューをバー全体基準で中央寄せするための基準 */
 }
-.yg-sidebar-menu{ display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+/* メニューはバー内の残り幅ではなく、バー全体の中央に絶対配置で寄せる。
+   ロゴ側とトグル側の幅が違っても常に真ん中に来るようにするため。 */
+.yg-sidebar-menu{
+  display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  max-width: min(64vw, 640px);
+  pointer-events: auto;
+}
 .yg-sidebar-spacer{ flex: 1 1 auto; }
 
 .yg-hamburger{
@@ -560,8 +588,8 @@ body.yg-gl-glass [data-yg-glass-sync]{
    12. Table — Excel-like
    ========================================================================== */
 .yg-table-wrap{
-  border-radius: var(--yg-radius-lg); overflow: auto; max-width: 100%;
-  background: var(--yg-glass-bg); border: 1px solid var(--yg-glass-border);
+  border-radius: var(--yg-radius-sm); overflow: auto; max-width: 100%;
+  background: var(--yg-glass-bg-strong); border: 1px solid var(--yg-glass-border);
   box-shadow: var(--yg-shadow-sm); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%);
 }
 table.yg-table{
