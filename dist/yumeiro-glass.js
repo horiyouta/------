@@ -1,5 +1,5 @@
 /* ============================================================================
-   Yumeiro Glass / ゆめいろグラス — yumeiro-glass.js v1.0.0
+   Yumeiro Glass / ゆめいろグラス — yumeiro-glass.js v1.1.0
    ----------------------------------------------------------------------------
    Tailwind CSS 等のユーティリティフレームワークと併用する前提の、ブランド専用
    UIエンジン。yumeiro-glass.css とセットで使う。背景エンジン (vendor/bubble-bg.js,
@@ -23,6 +23,9 @@
      setBGM(bool|'toggle')
      setSFX(bool|'toggle')
      notify({title, message, type, duration})
+     alert(msg | {title, message, detail, icon, tone, okText})            → Promise<void>
+     confirm(msg | {title, message, icon, tone, okText, cancelText})       → Promise<boolean>
+     dialog({title, message, detail, icon, tone, buttons, dismissValue})   → Promise<value>
      goToPage(groupEl|selector, pageName)
      openPopover(el) / closePopover(el)
      refresh()  … 動的にDOMを追加した後に再スキャンする
@@ -412,6 +415,153 @@
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  /* ==========================================================================
+     8-b. Dialog — alert / confirm / dialog（標準ダイアログの置き換え）
+     --------------------------------------------------------------------------
+     標準の alert() / confirm() は見た目がブランドと合わず、ブラウザ側の都合で
+     出し方も変えられないため、ゆめいろグラス独自のモーダルとして用意する。
+     ・すべて Promise を返す（await できる）。複数同時に呼んでも順番に1つずつ表示。
+     ・Esc / 奥のスクリムをクリック = キャンセル（dismissible:false で無効化）。
+     ・Tab はダイアログ内でループ。閉じたら、開く前にフォーカスしていた要素へ戻す。
+     ・文字列はすべて textContent で入れるので、そのまま渡して安全（HTML は解釈されない）。
+     ・message 内の改行(\n)はそのまま改行として表示される。
+     ========================================================================== */
+  var dialogChain = Promise.resolve();
+  var dialogSeq = 0;
+  var DIALOG_ICON = { 'default': '✨', danger: '🗑' };
+
+  // 動的に作ったボタン（ダイアログ用など）が閉じたあとも流体物理の更新対象に残り続けないよう掃除する
+  function pruneFluidItems() {
+    FBLoop.items = FBLoop.items.filter(function (it) { return it.el.isConnected; });
+  }
+
+  function makeEl(tag, cls, text) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined && text !== null) el.textContent = text;
+    return el;
+  }
+
+  function showDialog(opts) {
+    return new Promise(function (resolve) {
+      var tone = opts.tone === 'danger' ? 'danger' : 'default';
+      var buttons = (opts.buttons && opts.buttons.length) ? opts.buttons : [{ label: 'OK', value: true }];
+      var dismissible = opts.dismissible !== false;
+      var dismissValue = opts.dismissValue === undefined ? null : opts.dismissValue;
+      var opener = document.activeElement;
+      var uid = 'yg-dialog-' + (++dialogSeq);
+      var done = false;
+
+      var layer = makeEl('div', 'yg-dialog-layer');
+      var scrim = makeEl('div', 'yg-dialog-scrim');
+      var box = makeEl('div', 'yg-dialog' + (tone === 'danger' ? ' yg-dialog-danger' : ''));
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-modal', 'true');
+      box.tabIndex = -1;
+
+      var icon = opts.icon === undefined ? DIALOG_ICON[tone] : opts.icon;
+      if (icon) { var ic = makeEl('div', 'yg-dialog-icon', icon); ic.setAttribute('aria-hidden', 'true'); box.appendChild(ic); }
+      if (opts.title) { var t = makeEl('h2', 'yg-dialog-title', opts.title); t.id = uid + '-title'; box.appendChild(t); box.setAttribute('aria-labelledby', t.id); }
+      if (opts.message) { var m = makeEl('p', 'yg-dialog-msg', opts.message); m.id = uid + '-msg'; box.appendChild(m); box.setAttribute('aria-describedby', m.id); }
+      if (opts.detail) box.appendChild(makeEl('div', 'yg-dialog-detail yg-selectable', opts.detail));
+
+      var actions = makeEl('div', 'yg-dialog-actions');
+      var focusIndex = -1;
+      var btnEls = buttons.map(function (b, i) {
+        var btn = makeEl('button', 'yg-dialog-btn' +
+          (b.variant === 'secondary' ? ' is-secondary' : b.variant === 'danger' ? ' is-danger' : ''), b.label);
+        btn.type = 'button';
+        if (b.autofocus && focusIndex < 0) focusIndex = i;
+        on(btn, 'click', function () { finish(b.value); });
+        actions.appendChild(btn);
+        return btn;
+      });
+      if (focusIndex < 0) focusIndex = btnEls.length - 1;   // 慣例: 主ボタンは一番最後に置く
+      box.appendChild(actions);
+      layer.appendChild(scrim);
+      layer.appendChild(box);
+
+      function onKey(e) {
+        if (e.key === 'Escape' && dismissible) {
+          e.preventDefault(); e.stopPropagation();   // 奥のポップオーバーまで一緒に閉じないように
+          finish(dismissValue);
+        } else if (e.key === 'Tab') {
+          var first = btnEls[0], last = btnEls[btnEls.length - 1], act = document.activeElement;
+          if (!box.contains(act)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+          else if (e.shiftKey && act === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && act === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+      // 奥のページがスクロールしないように。ただし、長いメッセージ自体はスクロールできる
+      function blockScroll(e) {
+        var msg = e.target.closest && e.target.closest('.yg-dialog-msg, .yg-dialog-detail');
+        if (msg && msg.scrollHeight > msg.clientHeight) return;
+        e.preventDefault();
+      }
+
+      function finish(value) {
+        if (done) return; done = true;
+        document.removeEventListener('keydown', onKey, true);
+        layer.classList.remove('is-open');
+        setTimeout(function () { layer.remove(); pruneFluidItems(); }, 400);
+        if (opener && opener.focus && document.contains(opener)) {
+          try { opener.focus({ preventScroll: true }); } catch (err) { /* noop */ }
+        }
+        resolve(value);
+      }
+
+      if (dismissible) on(scrim, 'click', function () { finish(dismissValue); });
+      on(layer, 'wheel', blockScroll, { passive: false });
+      on(layer, 'touchmove', blockScroll, { passive: false });
+      document.addEventListener('keydown', onKey, true);
+
+      document.body.appendChild(layer);
+      initButtons();   // 動的に作ったボタンにも流体物理を付与
+      btnEls[focusIndex].focus({ preventScroll: true });
+      requestAnimationFrame(function () { requestAnimationFrame(function () { layer.classList.add('is-open'); }); });
+    });
+  }
+
+  /* dialog(opts) → Promise<選ばれたボタンの value>
+     opts.buttons: [{ label, value, variant: 'primary'(既定)|'secondary'|'danger', autofocus }]
+                   主ボタンは最後に置く（最後のボタンに初期フォーカス。autofocus で変更可）
+     opts.dismissValue: Esc・スクリムのクリックで閉じたときの値（既定 null）
+     opts.icon: 絵文字（''で非表示）/ opts.tone: 'default' | 'danger' */
+  function dialog(opts) {
+    var run = dialogChain.then(function () { return showDialog(opts || {}); });
+    dialogChain = run.catch(function () { /* 1つの失敗で後続の表示を止めない */ });
+    return run;
+  }
+
+  function normalizeDialogOpts(o) {
+    return (typeof o === 'string') ? { message: o } : (o || {});
+  }
+
+  /* alert(文字列 | opts) → Promise<void> */
+  function alertDialog(o) {
+    o = normalizeDialogOpts(o);
+    return dialog({
+      title: o.title, message: o.message, detail: o.detail, icon: o.icon, tone: o.tone,
+      buttons: [{ label: o.okText || 'OK', value: true }],
+      dismissValue: true
+    }).then(function () { /* 値なし */ });
+  }
+
+  /* confirm(文字列 | opts) → Promise<boolean>
+     tone:'danger' のときは OK ボタンが注意色になり、誤操作を避けるためキャンセルに初期フォーカスする */
+  function confirmDialog(o) {
+    o = normalizeDialogOpts(o);
+    var danger = o.tone === 'danger';
+    return dialog({
+      title: o.title, message: o.message, detail: o.detail, icon: o.icon, tone: o.tone,
+      buttons: [
+        { label: o.cancelText || 'キャンセル', value: false, variant: 'secondary', autofocus: danger },
+        { label: o.okText || 'OK', value: true, variant: danger ? 'danger' : 'primary' }
+      ],
+      dismissValue: false
+    }).then(function (v) { return v === true; });
   }
 
   /* ==========================================================================
@@ -892,6 +1042,9 @@
     setBGM: setBGM,
     setSFX: setSFX,
     notify: notify,
+    alert: alertDialog,
+    confirm: confirmDialog,
+    dialog: dialog,
     goToPage: goToPage,
     openPopover: openPopover,
     closePopover: closePopover,

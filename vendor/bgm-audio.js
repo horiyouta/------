@@ -29,6 +29,7 @@ window.BGMAudio = (function () {
     var started = false, loopStarted = false;
     var nextStartTime = 0, schedulerTimer = null;
     var isDucked = false;
+    var enabled = true;
 
     function ensureContext() {
         if (audioCtx) return;
@@ -96,6 +97,7 @@ window.BGMAudio = (function () {
     }
 
     function start() {
+        if (!enabled) return;
         if (started) {
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
             return;
@@ -128,6 +130,17 @@ window.BGMAudio = (function () {
             duckGain.gain.cancelScheduledValues(now);
             duckGain.gain.setValueAtTime(duckGain.gain.value, now);
             duckGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + durationMs / 1000);
+        },
+        // Dream Voice の設定画面向け。停止ではなく確実に無音化するので、
+        // 既にスケジュール済みのクロスフェード音も残らない。
+        setEnabled: function (on) {
+            enabled = !!on;
+            if (!audioCtx || !baseGain) return;
+            var now = audioCtx.currentTime;
+            baseGain.gain.cancelScheduledValues(now);
+            baseGain.gain.setValueAtTime(baseGain.gain.value, now);
+            baseGain.gain.linearRampToValueAtTime(enabled ? CONFIG.VOLUME : 0, now + 0.12);
+            if (enabled && started) start();
         },
 
         debug: function () {

@@ -1,5 +1,5 @@
 /* ============================================================================
-   Yumeiro Glass / ゆめいろグラス — v1.0.0
+   Yumeiro Glass / ゆめいろグラス — v1.1.0
    ----------------------------------------------------------------------------
    「モダン・サイバーな Liquid Glass」×「ゆめふわで明るくかわいい」を両立する
    ブランド専用 CSS ライブラリ。Tailwind CSS などのユーティリティフレームワーク
@@ -49,6 +49,10 @@
   --yg-ink-soft:   #8d8378;
   --yg-ink-faint:  #b2a99e;
   --yg-ink-on-accent: #f3f2ff; /* パステル背景でも読めるよう濃色に */
+
+  /* --- 注意・削除まわり（ダイアログの danger トーン用。ブランドの世界観に合わせたやわらかいローズ） --- */
+  --yg-danger:      #ee6f9c;
+  --yg-danger-grad: linear-gradient(135deg, #ff9dbb 0%, #ee6f9c 100%);
 
   /* --- glass surfaces (light) --- */
   --yg-glass-bg:        rgba(255,255,255,.50);
@@ -265,7 +269,7 @@ body.yg-gl-glass [data-yg-glass-sync]{
 .yg-sidebar-menu{
   display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  max-width: min(64vw, 640px);
+  max-width: min(96vw, 960px);
   pointer-events: auto;
 }
 .yg-sidebar-spacer{ flex: 1 1 auto; }
@@ -435,6 +439,146 @@ body.yg-gl-glass [data-yg-glass-sync]{
 @keyframes yg-toast-shrink{ from{ transform: scaleX(1); } to{ transform: scaleX(0); } }
 
 /* ==========================================================================
+   8-b. Dialog — alert / confirm / dialog（標準の alert() / confirm() の置き換え）
+   --------------------------------------------------------------------------
+   JS: YumeiroGlass.alert() / .confirm() / .dialog()（yumeiro-glass.js §8-b）。
+   ・奥は popover と同じスクリムでぼやける。手前に「シャボン玉のアイコン」つきの
+     ガラスパネルがぽんっと現れる。
+   ・ボタンは .yg-dialog-btn（既定ボタンの見た目を継承しつつ、流体物理も有効）。
+     バリアント: なし=主ボタン / .is-secondary=控えめ / .is-danger=注意（削除など）
+   ・トーン: .yg-dialog-danger でアイコンの色がローズになる。
+   ・opacity は layer ではなく scrim / panel 個別に持たせる。親に opacity があると
+     子の backdrop-filter が効かなくなる（Backdrop Root になる）ため。
+   ========================================================================== */
+.yg-dialog-layer{
+  position: fixed; inset: 0; z-index: 350; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.yg-dialog-layer.is-open{ pointer-events: auto; }
+
+.yg-dialog-scrim{
+  position: absolute; inset: 0;
+  background: var(--yg-scrim-bg);
+  backdrop-filter: blur(var(--yg-scrim-blur));
+  -webkit-backdrop-filter: blur(var(--yg-scrim-blur));
+  opacity: 0; transition: opacity var(--yg-dur) var(--yg-ease);
+}
+.yg-dialog-layer.is-open .yg-dialog-scrim{ opacity: 1; }
+
+.yg-dialog{
+  position: relative; box-sizing: border-box;
+  width: min(100%, 400px); max-height: min(88vh, 660px);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 24px 22px;
+  text-align: center;
+  border-radius: var(--yg-radius-xl);
+  background: var(--yg-glass-bg-strong);
+  border: 1px solid var(--yg-glass-border);
+  border-top-color: var(--yg-glass-border-strong);
+  border-left-color: var(--yg-glass-border-strong);
+  box-shadow: var(--yg-shadow-lg), var(--yg-inset-hi);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  opacity: 0; transform: translateY(14px) scale(.94);
+  transition: opacity var(--yg-dur) var(--yg-ease), transform var(--yg-dur-slow) var(--yg-ease-pop);
+  outline: none;
+}
+.yg-dialog-layer.is-open .yg-dialog{ opacity: 1; transform: none; }
+
+/* シャボン玉のアイコン: 左上のハイライト＋ゆめいろの膜 */
+.yg-dialog-icon{
+  flex: none; width: 60px; height: 60px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; line-height: 1;
+  /* 膜はテーマに関係なく明るいので、🗑 のように文字色で描かれる絵文字がダークで同化しないよう色を固定 */
+  color: #6b5a6e;
+  background:
+    radial-gradient(circle at 30% 26%, rgba(255,255,255,.95) 0, rgba(255,255,255,.42) 24%, transparent 46%),
+    var(--yg-accent-grad-soft);
+  border: 1px solid var(--yg-glass-border-strong);
+  box-shadow: 0 8px 22px rgba(203,178,242,.38), inset 0 -6px 12px rgba(255,255,255,.35), var(--yg-inset-hi);
+  opacity: 0; transform: scale(.55);
+  transition: opacity var(--yg-dur) var(--yg-ease) .06s, transform var(--yg-dur-slow) var(--yg-ease-pop) .06s;
+}
+.yg-dialog-layer.is-open .yg-dialog-icon{ opacity: 1; transform: none; }
+.yg-dialog-danger .yg-dialog-icon{
+  background:
+    radial-gradient(circle at 30% 26%, rgba(255,255,255,.95) 0, rgba(255,255,255,.42) 24%, transparent 46%),
+    linear-gradient(135deg, #ffc3d6, #ffdcc4);
+  box-shadow: 0 8px 22px rgba(255,140,175,.38), inset 0 -6px 12px rgba(255,255,255,.35), var(--yg-inset-hi);
+}
+
+.yg-dialog-title{
+  margin: 4px 0 0; font-size: 17px; font-weight: 800; line-height: 1.55;
+  color: var(--yg-ink); overflow-wrap: anywhere;
+  word-break: auto-phrase; text-wrap: balance;   /* 「う。」だけ次の行に落ちるような改行を避ける */
+}
+.yg-dialog-msg{
+  margin: 0; font-size: 13.5px; line-height: 1.85;
+  color: var(--yg-ink); opacity: .82;
+  white-space: pre-line; overflow-wrap: anywhere;
+  word-break: auto-phrase; text-wrap: balance;
+  max-height: 38vh; overflow-y: auto; overscroll-behavior: contain;
+  /* ゆめいろグラスは全体を user-select:none にするので、読み返し・コピーできるよう戻す */
+  -webkit-user-select: text; -moz-user-select: text; user-select: text;
+}
+/* エラー内容など、コピーしたくなる技術的な詳細 */
+.yg-dialog-detail{
+  align-self: stretch; box-sizing: border-box; margin: 2px 0 0; padding: 10px 12px;
+  text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 11.5px/1.7 'Outfit', ui-monospace, monospace; color: var(--yg-ink); opacity: .82;
+  background: var(--yg-glass-bg-soft); border: 1px solid var(--yg-glass-border);
+  border-radius: var(--yg-radius-sm);
+  max-height: 120px; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-user-select: text; -moz-user-select: text; user-select: text;
+}
+
+.yg-dialog-actions{
+  align-self: stretch; display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 10px; margin-top: 10px;
+}
+
+/* --- ダイアログ専用ボタン: 既定ボタンと同じ質感（.yg-dialog-btn は既定スタイルの適用対象外なので自前で持つ） --- */
+.yg-dialog .yg-dialog-btn{
+  position: relative; isolation: isolate; overflow: hidden;
+  flex: 1 1 120px; min-width: 0;
+  font-family: var(--yg-font); font-weight: 700; font-size: 14px; letter-spacing: .02em;
+  color: var(--yg-ink-on-accent);
+  padding: 11px 20px;
+  border: 0; border-radius: var(--yg-radius-md);
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  background: var(--yg-accent-grad);
+  box-shadow: 0 10px 26px rgba(219,140,220,.32), inset 0 1px 0 rgba(255,255,255,.45);
+  transform: translateZ(0); will-change: transform, border-radius;
+}
+.yg-dialog .yg-dialog-btn.is-secondary{
+  color: var(--yg-ink-soft);
+  background: var(--yg-glass-bg);
+  border: 1px solid var(--yg-glass-border-strong);
+  box-shadow: var(--yg-shadow-sm), var(--yg-inset-hi);
+}
+.yg-dialog .yg-dialog-btn.is-secondary:hover{ color: var(--yg-ink); background: var(--yg-glass-bg-strong); }
+.yg-dialog .yg-dialog-btn.is-danger{
+  background: var(--yg-danger-grad);
+  text-shadow: 0 1px 2px rgba(120,40,80,.28);
+  box-shadow: 0 10px 26px rgba(238,111,156,.34), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.yg-dialog .yg-dialog-btn:focus-visible{
+  outline: 3px solid rgba(148,208,245,.65); outline-offset: 2px;
+}
+
+@media (max-width: 480px){
+  /* 縦積み。主ボタンが一番上に来るよう、DOM の並び（主ボタンが最後）を反転する */
+  .yg-dialog-actions{ flex-direction: column-reverse; }
+  .yg-dialog .yg-dialog-btn{ flex: none; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce){
+  .yg-dialog-scrim, .yg-dialog, .yg-dialog-icon{ transition: opacity .01s linear; transform: none; }
+}
+
+/* ==========================================================================
    9. Sub-page router — data-yg-page
    ========================================================================== */
 [data-yg-page]{ display: none; }
@@ -497,7 +641,7 @@ body.yg-gl-glass [data-yg-glass-sync]{
      is applied at runtime by yumeiro-glass.js, ported from fluid-button.html.
      Other component classes (nav / chip / select-trigger / icon-btn / ...)
      opt out, since they carry their own shape & motion language. --- */
-[data-yg-root] button:not(.yg-plain):not(.yg-icon-btn):not(.yg-nav-btn):not(.yg-toggle-chip):not(.yg-select-trigger):not(.yg-audio-play):not(.yg-hamburger):not(.yg-toast-close),
+[data-yg-root] button:not(.yg-plain):not(.yg-icon-btn):not(.yg-nav-btn):not(.yg-toggle-chip):not(.yg-select-trigger):not(.yg-audio-play):not(.yg-hamburger):not(.yg-toast-close):not(.yg-dialog-btn),
 [data-yg-root] .yg-btn:not(.yg-plain){
   position: relative; isolation: isolate; overflow: hidden;
   font-family: var(--yg-font); font-weight: 700; font-size: 14px; letter-spacing: .02em;
