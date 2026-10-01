@@ -1,38 +1,35 @@
 /* ============================================================================
-   Yumeiro Glass / ゆめいろグラス — yumeiro-glass.js v1.1.0
+   Yumeiro Glass / ゆめいろグラス — yumeiro-glass.js v1.2.0
    ----------------------------------------------------------------------------
-   Tailwind CSS 等のユーティリティフレームワークと併用する前提の、ブランド専用
-   UIエンジン。yumeiro-glass.css とセットで使う。背景エンジン (vendor/bubble-bg.js,
-   vendor/liquid-bg.js) と音声エンジン (vendor/bgm-audio.js, vendor/liquid-audio.js)
-   は任意（読み込まれていれば自動連携する）。
+   【いちばん簡単な使い方】 <head> にこの1行を書くだけ:
+       <script src="https://horiyouta-homepage.netlify.app/dist/yumeiro-glass.js"></script>
+   → CSS の読み込み・背景エンジン(bubble-bg / liquid-bg)の読み込み・canvas の生成・
+     data-yg-root の付与・init() まですべて自動。HTML には canvas も init() も不要。
+     （従来どおり vendor を <script> で並べて YumeiroGlass.init() を呼ぶ書き方も動く）
 
-   使い方の最小構成:
-     <html data-yg-theme="light">
-       ...
-       <link rel="stylesheet" href="yumeiro-glass.css">
-     </html>
-     <body data-yg-root>
-       ...
-       <script src="yumeiro-glass.js"></script>
-       <script> YumeiroGlass.init(); </script>
-     </body>
+   <script> タグに属性を付けるとオプションを指定できる:
+       data-yg-theme="light|dark|auto"   初期テーマ（ユーザーが切り替えた選択が保存されていればそちらが優先）
+       data-yg-quality="high|balanced|low" 背景の画質/負荷（既定 balanced）
+       data-yg-bg="false"                背景エンジン(WebGL)を使わない（CSS のみ）
+       data-yg-bgm="true" / data-yg-sfx="false"  音声の初期状態
+       data-yg-auto="false"              自動 init を止める（手動で YumeiroGlass.init() を呼ぶ）
+       data-yg-vendor-base="URL/"        vendor/ の場所を明示
 
    公開API（window.YumeiroGlass）:
-     init(opts)
-     setTheme('light'|'dark'|'toggle')
-     setBGM(bool|'toggle')
-     setSFX(bool|'toggle')
-     notify({title, message, type, duration})
-     alert(msg | {title, message, detail, icon, tone, okText})            → Promise<void>
-     confirm(msg | {title, message, icon, tone, okText, cancelText})       → Promise<boolean>
-     dialog({title, message, detail, icon, tone, buttons, dismissValue})   → Promise<value>
-     goToPage(groupEl|selector, pageName)
-     openPopover(el) / closePopover(el)
-     refresh()  … 動的にDOMを追加した後に再スキャンする
+     init(opts) → Promise      何度呼んでも安全（2回目以降は opts の反映だけ）
+     ready / whenReady(fn)     初期化完了を待つ
+     setTheme('light'|'dark'|'auto'|'toggle')   ← init より前、どのタイミングで呼んでもよい
+     setBGM(bool|'toggle') / setSFX(bool|'toggle')
+     notify({title, message, duration})
+     alert / confirm / dialog  → Promise
+     goToPage(groupEl|selector, pageName) / openPopover(el) / closePopover(el)
+     refresh()                 DOM を動的に追加した後の再スキャン（MutationObserver で自動実行もされる）
+     diagnose()                うまく表示されないときの自己診断（コンソールに原因候補を出す）
    ========================================================================= */
 (function (global) {
   'use strict';
 
+  var VERSION = '1.2.0';
   var REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var STORE_KEY_THEME = 'yg-theme';
   var STORE_KEY_BGM = 'yg-bgm';
@@ -40,8 +37,78 @@
 
   function qs(sel, root) { return (root || document).querySelector(sel); }
   function qsa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function on(el, ev, fn, opts) { el.addEventListener(ev, fn, opts || false); }
+  /* ev は文字列でも配列でもよい */
+  function on(el, ev, fn, opts) {
+    if (Array.isArray(ev)) { ev.forEach(function (e) { el.addEventListener(e, fn, opts || false); }); return; }
+    el.addEventListener(ev, fn, opts || false);
+  }
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+  /* localStorage が使えない環境（サンドボックス化された iframe、AI のプレビュー、プライベートモード等）では
+     アクセスしただけで SecurityError になる。旧版はここで init() ごと落ちていた。必ず try/catch 経由にする。 */
+  var memStore = {};
+  function store(key, val) {
+    try {
+      if (val === undefined) { var v = localStorage.getItem(key); return v === null ? (key in memStore ? memStore[key] : null) : v; }
+      localStorage.setItem(key, val);
+    } catch (e) {
+      if (val === undefined) return key in memStore ? memStore[key] : null;
+      memStore[key] = val;
+    }
+  }
+
+  /* ==========================================================================
+     0-a. この <script> 自身の場所・属性を調べる（vendor / CSS の自動読み込み用）
+     ========================================================================== */
+  var SELF = (function () {
+    var el = document.currentScript;
+    if (!el) {
+      var ss = document.getElementsByTagName('script');
+      for (var i = ss.length - 1; i >= 0; i--) if (/yumeiro-glass(\.min)?\.js(\?|#|$)/.test(ss[i].src || '')) { el = ss[i]; break; }
+    }
+    return el || null;
+  })();
+  function selfAttr(name) { return SELF && SELF.hasAttribute(name) ? SELF.getAttribute(name) : null; }
+  function attrBool(name, dflt) { var v = selfAttr(name); if (v === null) return dflt; return !(v === 'false' || v === '0' || v === 'off'); }
+  var DIST_BASE = (SELF && SELF.src) ? SELF.src.replace(/[^\/]*([?#].*)?$/, '') : '';
+  var VENDOR_BASE = selfAttr('data-yg-vendor-base') || (DIST_BASE ? DIST_BASE.replace(/dist\/$/, '') + 'vendor/' : 'vendor/');
+  var CSS_URL = selfAttr('data-yg-css') || (DIST_BASE ? DIST_BASE + 'yumeiro-glass.css' : 'dist/yumeiro-glass.css');
+  var BG_ENABLED = attrBool('data-yg-bg', true) && !(global.YG_OPTIONS && global.YG_OPTIONS.background === false);
+
+  function hasScript(file) { return !!document.querySelector('script[src*="' + file + '"]'); }
+  function loadScript(src) {
+    return new Promise(function (resolve) {
+      var el = document.createElement('script');
+      el.src = src;
+      el.async = false;                       // 挿入順に実行される（bubble → liquid の順を保証）
+      el.onload = function () { resolve(true); };
+      el.onerror = function () { console.warn('[yumeiro-glass] 読み込めませんでした: ' + src); resolve(false); };
+      (document.head || document.documentElement).appendChild(el);
+    });
+  }
+
+  /* ==========================================================================
+     0-b. 品質プリセット（vendor を読み込む «前» に設定しておく必要がある）
+     ========================================================================== */
+  var QUALITY = {
+    high:     { liquid: { DPR_MAX: 2.0, MAX_PIXELS: 4600000 }, bubbleFps: 60, bubbleRes: null },
+    balanced: { liquid: {}, bubbleFps: 30, bubbleRes: null },
+    low:      { liquid: { DPR_MAX: 1.0, MAX_PIXELS: 1500000, SIM_RES: 96, RIPPLE_RES: 256, PRESSURE_ITER: 8, ADVECT_BFECC: false },
+                bubbleFps: 24, bubbleRes: { DPR_MAX: 1.0, SHORT_SIDE_MAX: 720 } }
+  };
+  function pickQuality() {
+    var q = (global.YG_OPTIONS && global.YG_OPTIONS.quality) || selfAttr('data-yg-quality');
+    if (q && QUALITY[q]) return q;
+    var weak = (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+    return weak ? 'low' : 'balanced';
+  }
+  var QUALITY_NAME = pickQuality();
+  (function applyQualityGlobals() {
+    var q = QUALITY[QUALITY_NAME];
+    if (!global.LIQUID_BG_CONFIG) global.LIQUID_BG_CONFIG = q.liquid;
+    if (typeof global.BG_BUBBLE_FPS !== 'number') global.BG_BUBBLE_FPS = q.bubbleFps;
+    if (!global.BUBBLE_BG_RES && q.bubbleRes) global.BUBBLE_BG_RES = q.bubbleRes;
+  })();
 
   /* ==========================================================================
      0. State
@@ -52,20 +119,90 @@
     sfx: true,
     mobileBreakpoint: 720
   };
+  var inited = false, initScheduled = false, pendingOpts = {}, themeChosenByCode = false;
+  var readyResolve, readyPromise = new Promise(function (r) { readyResolve = r; });
 
   /* ==========================================================================
-     1. init
+     1. 起動 — スクリプト読み込み直後に «早くできること» を済ませ、残りは DOM 構築後に init()
+     --------------------------------------------------------------------------
+     ・テーマ(html の data-yg-theme)と CSS は即座に反映 → 画面のチラつき(FOUC)を防ぐ
+     ・背景エンジン(vendor)の読み込みもここで開始 → 本文のパースと並行して取得できる
+     ・init() は何度呼んでも安全。DOM 構築前に呼ばれたら構築後まで待つ
      ========================================================================== */
+  function resolveInitialTheme() {
+    var t = store(STORE_KEY_THEME);
+    if (!t) t = (global.YG_OPTIONS && global.YG_OPTIONS.theme) || selfAttr('data-yg-theme') || document.documentElement.getAttribute('data-yg-theme') || 'light';
+    if (t === 'auto') t = (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    return t === 'dark' ? 'dark' : 'light';
+  }
+
+  function injectCss() {
+    if (document.querySelector('link[rel="stylesheet"][href*="yumeiro-glass"]')) return;
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = CSS_URL;
+    (document.head || document.documentElement).appendChild(l);
+  }
+
+  var vendorsSettled = false;
+  function loadBackgroundVendors() {
+    if (!BG_ENABLED) { vendorsSettled = true; return Promise.resolve(); }
+    var jobs = [];
+    ['bubble-bg', 'liquid-bg'].forEach(function (name) {
+      if (!hasScript(name + '.js')) jobs.push(loadScript(VENDOR_BASE + name + '.js'));
+    });
+    return Promise.all(jobs).then(function () {
+      vendorsSettled = true;
+      applyLook();
+      refresh();
+    });
+  }
+
+  /* 音声エンジンは使うときだけ読み込む（BGM/SFX が OFF ならダウンロードしない） */
+  var audioLoads = {};
+  function loadAudioEngine(file, globalName) {
+    if (global[globalName]) return Promise.resolve();
+    if (audioLoads[file]) return audioLoads[file];
+    if (hasScript(file + '.js')) {
+      return (audioLoads[file] = new Promise(function (resolve) {
+        var n = 0; (function wait() { if (global[globalName] || ++n > 50) resolve(); else setTimeout(wait, 100); })();
+      }));
+    }
+    return (audioLoads[file] = loadScript(VENDOR_BASE + file + '.js'));
+  }
+
+  function scheduleInit() {
+    if (initScheduled) return;
+    initScheduled = true;
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', doInit, { once: true });
+    else doInit();
+  }
+
+  /* init(opts): 何度呼んでも安全。Promise を返す（初期化完了で解決） */
   function init(opts) {
     opts = opts || {};
+    if (inited) { applyLateOpts(opts); return readyPromise; }
+    for (var k in opts) pendingOpts[k] = opts[k];
+    scheduleInit();
+    return readyPromise;
+  }
+  function applyLateOpts(o) {
+    if (o.theme) setTheme(o.theme);
+    if (o.bgm !== undefined) setBGM(o.bgm);
+    if (o.sfx !== undefined) setSFX(o.sfx);
+  }
+
+  function doInit() {
+    if (inited) return;
+    inited = true;
+    var opts = pendingOpts;
     document.body.setAttribute('data-yg-root', '');
+    if (BG_ENABLED) ensureBackgroundCanvases();
 
-    ensureBackgroundCanvases();
-
-    STATE.theme = opts.theme || localStorage.getItem(STORE_KEY_THEME) || 'light';
-    STATE.bgm = opts.bgm !== undefined ? opts.bgm : (localStorage.getItem(STORE_KEY_BGM) === '1');
-    STATE.sfx = opts.sfx !== undefined ? opts.sfx : (localStorage.getItem(STORE_KEY_SFX) !== '0');
-    applyTheme(STATE.theme, /*silent*/ true);
+    if (opts.theme) applyTheme(opts.theme, true);
+    else applyTheme(STATE.theme, true);
+    var storedBgm = store(STORE_KEY_BGM), storedSfx = store(STORE_KEY_SFX);
+    STATE.bgm = opts.bgm !== undefined ? !!opts.bgm : (storedBgm !== null ? storedBgm === '1' : attrBool('data-yg-bgm', false));
+    STATE.sfx = opts.sfx !== undefined ? !!opts.sfx : (storedSfx !== null ? storedSfx !== '0' : attrBool('data-yg-sfx', true));
 
     initLayout();
     initSidebars();
@@ -79,22 +216,54 @@
     initTables();
     initAudioElements();
     initLiquidSyncClasses();
+    startAutoRefresh();
+    watchBackgroundState();
 
-    watchGlGlass();
+    /* 音声: 状態に応じて必要なエンジンだけ読み込む（BGM は最初のクリックで鳴り始める） */
+    if (STATE.bgm) setBGM(true);
+    if (STATE.sfx) {
+      var kick = function () { setSFX(true); };
+      if (document.readyState === 'complete') kick(); else on(window, 'load', kick, { once: true });
+    } else if (global.LiquidAudio) { global.LiquidAudio.setEnabled(false); }
 
     document.dispatchEvent(new CustomEvent('yg:ready'));
+    readyResolve(api);
   }
 
   function refresh() {
+    if (!inited) return;
     initLayout(); initSidebars(); initPopovers(); initToastRegions();
     initPageRouter(); initToggleChips(); initButtons(); initCardsFluid(); initSelects();
     initTables(); initAudioElements(); initLiquidSyncClasses();
+  }
+
+  /* 動的に追加された要素も自動で装飾する（YumeiroGlass.refresh() の手動呼び出しは不要） */
+  var autoRefreshObs = null;
+  function startAutoRefresh() {
+    if (autoRefreshObs || !global.MutationObserver) return;
+    var timer = 0;
+    var SKIP = /(^|\s)(yg-toast|yg-popover-scrim|yg-scrim|yg-dialog-layer|yg-btn-sheen|yg-btn-label|yg-audio-dock)(\s|$)/;
+    function relevant(n) { return n.nodeType === 1 && !SKIP.test(n.className && n.className.baseVal === undefined ? String(n.className) : ''); }
+    autoRefreshObs = new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var m = muts[i], t = m.target;
+        if (t.closest && t.closest('.yg-toast-region, .yg-dialog-layer')) continue;
+        var hit = false, j;
+        for (j = 0; j < m.addedNodes.length && !hit; j++) hit = relevant(m.addedNodes[j]);
+        for (j = 0; j < m.removedNodes.length && !hit; j++) hit = relevant(m.removedNodes[j]);
+        if (hit) { clearTimeout(timer); timer = setTimeout(refresh, 100); return; }
+      }
+    });
+    autoRefreshObs.observe(document.body, { childList: true, subtree: true });
   }
 
   /* ==========================================================================
      2. Background canvases (bubble-bg.js / liquid-bg.js are optional vendors)
      ========================================================================== */
   function ensureBackgroundCanvases() {
+    /* vendor 側も canvas が無ければ自分で作るので、ここは «念のため» の二重化。
+       旧版の README は «canvas は自動生成» と書いていたが、vendor が先に動いて
+       getElementById で null を掴む順序だったため実際には生成が間に合っていなかった。 */
     if (!qs('#bubbleGl')) {
       var b = document.createElement('canvas');
       b.id = 'bubbleGl'; b.setAttribute('aria-hidden', 'true');
@@ -107,16 +276,28 @@
     }
   }
 
-  function watchGlGlass() {
-    function tick() {
-      if (global.LiquidBG && global.LiquidBG.isGlassOK && global.LiquidBG.isGlassOK()) {
-        document.body.classList.add('yg-gl-glass');
-      } else {
-        document.body.classList.remove('yg-gl-glass');
-      }
-      requestAnimationFrame(tick);
+  /* 水面エンジンの状態: 'pending'（起動待ち）| 'ok' | 'failed'（WebGL 非対応など）。
+     'failed' のときだけ .yg-liquid-float に CSS のゆらゆらアニメを付ける
+     （ok のときに付けると、CSS アニメが物理シミュレーションの transform を上書きしてしまう）。 */
+  var bgState = 'pending';
+  function syncFloatFallback() {
+    qsa('.yg-liquid-float, .yg-liquid').forEach(function (el) { el.classList.toggle('yg-float-fallback', bgState === 'failed'); });
+  }
+  function watchBackgroundState() {
+    if (!BG_ENABLED) { bgState = 'failed'; syncFloatFallback(); return; }
+    function ok() { bgState = 'ok'; syncFloatFallback(); }
+    if (global.LiquidBG && global.LiquidBG.ready && global.LiquidBG.stats && global.LiquidBG.stats() && global.LiquidBG.stats().shown) ok();
+    document.addEventListener('yg:bg-ready', ok, { once: true });
+    function judge() {
+      setTimeout(function () {
+        if (bgState === 'ok') return;
+        if (!(global.LiquidBG && global.LiquidBG.ready)) {
+          bgState = 'failed'; syncFloatFallback();
+          console.info('[yumeiro-glass] 水面エンジン(WebGL)を開始できませんでした。CSS のすりガラス表示で動作します。原因確認: YumeiroGlass.diagnose()');
+        }
+      }, 1800);
     }
-    if (!REDUCED) requestAnimationFrame(tick);
+    if (document.readyState === 'complete') judge(); else on(window, 'load', judge, { once: true });
   }
 
   /* ==========================================================================
@@ -126,19 +307,28 @@
   /* 上記は指定値のまま。通常テキストの明るさは CSS 側の --yg-ink-soft / --yg-ink-faint（dark）で調整済み。 */
   var LIGHT_LOOK = { exposure: 0.70, preSat: 1.20, contrast: 1.25, lift: 0.03, bloom: 0.62 };
 
+  /* bubble-bg.js の setLook は読み込み直後から使えるが、読み込み前に setTheme が呼ばれる
+     ことも多いので、vendor 読み込み完了時と window load 時にも必ず再適用する。 */
+  function applyLook() {
+    if (global.BubbleBG && typeof global.BubbleBG.setLook === 'function') {
+      global.BubbleBG.setLook(STATE.theme === 'dark' ? DARK_LOOK : LIGHT_LOOK);
+    }
+  }
+
   function applyTheme(mode, silent) {
     if (mode === 'toggle') mode = (STATE.theme === 'dark') ? 'light' : 'dark';
+    if (mode === 'auto') mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    mode = (mode === 'dark') ? 'dark' : 'light';
     STATE.theme = mode;
     document.documentElement.setAttribute('data-yg-theme', mode);
-    localStorage.setItem(STORE_KEY_THEME, mode);
-    if (global.BubbleBG && typeof global.BubbleBG.setLook === 'function') {
-      global.BubbleBG.setLook(mode === 'dark' ? DARK_LOOK : LIGHT_LOOK);
-    }
+    store(STORE_KEY_THEME, mode);
+    applyLook();
     syncToggleChips('theme', mode === 'dark');
     if (!silent) document.dispatchEvent(new CustomEvent('yg:theme', { detail: { theme: mode } }));
   }
 
-  function setTheme(mode) { applyTheme(mode); }
+  /* init() より前でも、<head> 内でも、いつ呼んでも有効（html 属性は即時反映、背景は読み込み後に追従） */
+  function setTheme(mode) { themeChosenByCode = true; applyTheme(mode); }
 
   /* ==========================================================================
      4. Audio (BGM loop / SFX) — wraps vendor/bgm-audio.js & vendor/liquid-audio.js
@@ -146,18 +336,23 @@
   function setBGM(v) {
     if (v === 'toggle') v = !STATE.bgm;
     STATE.bgm = !!v;
-    localStorage.setItem(STORE_KEY_BGM, STATE.bgm ? '1' : '0');
-    if (global.BGMAudio) {
-      if (STATE.bgm) global.BGMAudio.start ? global.BGMAudio.start() : null;
-      global.BGMAudio.duck && global.BGMAudio.duck(!STATE.bgm);
+    store(STORE_KEY_BGM, STATE.bgm ? '1' : '0');
+    if (STATE.bgm) {
+      loadAudioEngine('bgm-audio', 'BGMAudio').then(function () { if (global.BGMAudio && STATE.bgm) global.BGMAudio.setEnabled(true); });
+    } else if (global.BGMAudio) {
+      global.BGMAudio.setEnabled(false);   // 完全に無音へ（duck は動画再生中の自動音量調整用で、ON/OFF とは別物）
     }
     syncToggleChips('bgm', STATE.bgm);
   }
   function setSFX(v) {
     if (v === 'toggle') v = !STATE.sfx;
     STATE.sfx = !!v;
-    localStorage.setItem(STORE_KEY_SFX, STATE.sfx ? '1' : '0');
-    if (global.LiquidAudio && global.LiquidAudio.setEnabled) global.LiquidAudio.setEnabled(STATE.sfx);
+    store(STORE_KEY_SFX, STATE.sfx ? '1' : '0');
+    if (STATE.sfx) {
+      loadAudioEngine('liquid-audio', 'LiquidAudio').then(function () { if (global.LiquidAudio && STATE.sfx) global.LiquidAudio.setEnabled(true); });
+    } else if (global.LiquidAudio && global.LiquidAudio.setEnabled) {
+      global.LiquidAudio.setEnabled(false);
+    }
     syncToggleChips('sfx', STATE.sfx);
   }
 
@@ -376,6 +571,7 @@
   function isMobileViewport() { return window.innerWidth <= 720; }
 
   function notify(opts) {
+    if (!inited) { scheduleInit(); return readyPromise.then(function () { return notify(opts); }); }
     opts = opts || {};
     var duration = opts.duration || 4200;
     var mobile = isMobileViewport();
@@ -428,6 +624,9 @@
      ・文字列はすべて textContent で入れるので、そのまま渡して安全（HTML は解釈されない）。
      ・message 内の改行(\n)はそのまま改行として表示される。
      ========================================================================== */
+  function domReady() {
+    return new Promise(function (r) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { r(); }, { once: true }); else r(); });
+  }
   var dialogChain = Promise.resolve();
   var dialogSeq = 0;
   var DIALOG_ICON = { 'default': '✨', danger: '🗑' };
@@ -530,7 +729,7 @@
      opts.dismissValue: Esc・スクリムのクリックで閉じたときの値（既定 null）
      opts.icon: 絵文字（''で非表示）/ opts.tone: 'default' | 'danger' */
   function dialog(opts) {
-    var run = dialogChain.then(function () { return showDialog(opts || {}); });
+    var run = dialogChain.then(function () { return domReady(); }).then(function () { return showDialog(opts || {}); });
     dialogChain = run.catch(function () { /* 1つの失敗で後続の表示を止めない */ });
     return run;
   }
@@ -626,15 +825,20 @@
      ========================================================================== */
   function initLiquidSyncClasses() {
     var changed = false;
-    qsa('.yg-liquid-float').forEach(function (el) {
+    /* .yg-liquid-float → data-float / .yg-liquid-glass → data-glass / .yg-liquid → 両方（+ガラスの見た目）。
+       float と glass は独立: glass だけなら «動かない本物のガラス»、float だけなら «揺れるだけ»。 */
+    qsa('.yg-liquid-float, .yg-liquid').forEach(function (el) {
       if (!el.hasAttribute('data-float')) { el.setAttribute('data-float', ''); changed = true; }
       el.setAttribute('data-yg-float', '');
-      if (!global.LiquidBG || !global.LiquidBG.ready) el.classList.add('yg-float-fallback');
     });
-    qsa('.yg-liquid-glass').forEach(function (el) {
+    qsa('.yg-liquid-glass, .yg-liquid').forEach(function (el) {
       if (!el.hasAttribute('data-glass')) { el.setAttribute('data-glass', ''); changed = true; }
       el.setAttribute('data-yg-glass-sync', '');
     });
+    qsa('.yg-liquid').forEach(function (el) {
+      if (!/(^|\s)yg-glass(-strong|-soft)?(\s|$)/.test(el.className)) el.classList.add('yg-glass');
+    });
+    if (bgState === 'failed') syncFloatFallback();
     if (changed && global.LiquidBG && typeof global.LiquidBG.refresh === 'function') {
       global.LiquidBG.refresh();
     }
@@ -789,6 +993,7 @@
     items: [], running: false, last: 0,
     add: function (x) { this.items.push(x); },
     start: function () {
+      this.items = this.items.filter(function (it) { return it.el.isConnected; });
       if (this.running) return; this.running = true; this.last = performance.now();
       requestAnimationFrame(FBLoop.tick);
     },
@@ -813,10 +1018,11 @@
       if (!qs('.yg-btn-label', btn)) {
         var label = document.createElement('span');
         label.className = 'yg-btn-label';
-        while (btn.childNodes.length > 1) label.appendChild(btn.childNodes[1] === btn.firstChild ? btn.childNodes[1] : btn.childNodes[btn.childNodes.length - 1]);
-        // 上のループは sheen 以外の子要素を label に集約する
+        /* sheen 以外の子ノードを «元の順序のまま» label へ移す
+           （旧実装は末尾から1つずつ移していたため、<button>保存 <b>する</b></button> が「する 保存」と逆順になっていた） */
+        var sheenEl = qs('.yg-btn-sheen', btn);
         Array.prototype.slice.call(btn.childNodes).forEach(function (node) {
-          if (node !== qs('.yg-btn-sheen', btn) && node !== label) label.appendChild(node);
+          if (node !== sheenEl) label.appendChild(node);
         });
         btn.appendChild(label);
       }
@@ -840,13 +1046,6 @@
       FBLoop.add(fb);
     });
   }
-
-  // Node.addEventListener で複数イベントをまとめて登録するための小さなポリフィル的ヘルパー
-  var _origOn = on;
-  on = function (el, ev, fn, opts) {
-    if (Array.isArray(ev)) { ev.forEach(function (e) { el.addEventListener(e, fn, opts || false); }); return; }
-    _origOn(el, ev, fn, opts);
-  };
 
   /* ==========================================================================
      12. select: glass "slot reel" custom dropdown
@@ -1035,8 +1234,36 @@
   /* ==========================================================================
      Public API
      ========================================================================== */
-  global.YumeiroGlass = {
+  /* diagnose(): 「表示されない」「ガラスが効かない」ときの自己診断。原因の候補をコンソールに出す */
+  function diagnose() {
+    var L = global.LiquidBG, B = global.BubbleBG;
+    var st = (L && L.stats && L.stats()) || null;
+    var info = {
+      version: VERSION, initialized: inited, theme: STATE.theme, quality: QUALITY_NAME, backgroundEnabled: BG_ENABLED,
+      scripts: { bubbleBg: !!B && !!B.canvas, liquidBg: !!(L && L.ready), glassOK: !!(L && L.isGlassOK && L.isGlassOK()) },
+      bubbleReady: !!(B && B.ready), liquidShown: !!(st && st.shown),
+      canvases: { bubbleGl: !!qs('#bubbleGl'), liquid: !!qs('#liquid') },
+      liquid: st, vendorBase: VENDOR_BASE, cssUrl: CSS_URL, hints: []
+    };
+    var h = info.hints;
+    if (!inited) h.push('init() がまだ完了していません（DOM 構築待ち、または data-yg-auto="false"）。YumeiroGlass.init() を呼んでください。');
+    if (!document.querySelector('link[rel="stylesheet"][href*="yumeiro-glass"]')) h.push('yumeiro-glass.css が見つかりません。');
+    if (BG_ENABLED && !hasScript('bubble-bg.js')) h.push('bubble-bg.js が読み込まれていません。vendor の場所を確認: ' + VENDOR_BASE);
+    if (BG_ENABLED && !hasScript('liquid-bg.js')) h.push('liquid-bg.js が読み込まれていません。vendor の場所を確認: ' + VENDOR_BASE);
+    if (BG_ENABLED && vendorsSettled && !(L && L.ready)) h.push('liquid-bg.js は読み込まれましたが WebGL の初期化に失敗しています（WebGL 非対応／無効、ハードウェアアクセラレーション OFF、拡張 EXT_color_buffer_float 非対応など）。この場合は CSS のすりガラス表示になります。');
+    if (L && L.ready && st && !st.glassOK) h.push('水面は動いていますが、ガラス用シェーダのコンパイルに失敗しています。コンソールの [liquid-bg] エラーを確認してください。');
+    if (st && st.glassOK && qsa('[data-glass]').length === 0) h.push('本物のガラスにしたい要素に class="yg-liquid-glass"（動かない）か class="yg-liquid"（揺れるガラス）を付けてください。');
+    if (st && st.candidates > st.maxActive) h.push('ガラス/ビート板の対象が ' + st.candidates + ' 個あります。同時に有効にできるのは画面内の ' + st.maxActive + ' 個までです（スクロールで自動的に入れ替わります）。');
+    if (location.protocol === 'file:') h.push('file:// で開いています。相対パスの vendor は読めますが、ブラウザによっては音声ファイルの取得などが制限されます。ローカルサーバーでの確認を推奨します。');
+    try { console.log('%c[yumeiro-glass] diagnose', 'font-weight:bold;color:#c06ac9'); console.log(info); if (h.length) console.warn('考えられる原因:\n- ' + h.join('\n- ')); else console.log('問題は見つかりませんでした。'); } catch (e) { /* noop */ }
+    return info;
+  }
+
+  var api = {
+    version: VERSION,
     init: init,
+    ready: readyPromise,
+    whenReady: function (fn) { return readyPromise.then(fn); },
     refresh: refresh,
     setTheme: setTheme,
     setBGM: setBGM,
@@ -1048,6 +1275,23 @@
     goToPage: goToPage,
     openPopover: openPopover,
     closePopover: closePopover,
+    diagnose: diagnose,
     state: STATE
   };
+  global.YumeiroGlass = api;
+
+  /* ==========================================================================
+     自動ブートストラップ（スクリプトを読み込んだ瞬間に実行）
+     ========================================================================== */
+  STATE.theme = resolveInitialTheme();
+  document.documentElement.setAttribute('data-yg-theme', STATE.theme);   // 以後の setTheme も含め、即時反映
+  document.documentElement.setAttribute('data-yg-root', '');             // base スタイルを DOM 構築前から有効に
+  injectCss();
+  /* vendor の読み込みは «DOM 解析後» に開始する。<head> 内で実行される時点では <body> 末尾に書かれた
+     旧式の <script src=".../bubble-bg.js"> がまだ見えず、重複チェックをすり抜けて二重読み込み
+     （= 水面エンジンが2つ起動して競合）になるため。 */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadBackgroundVendors, { once: true });
+  else loadBackgroundVendors();
+  on(window, 'load', applyLook, { once: true });
+  if (attrBool('data-yg-auto', true) && !(global.YG_OPTIONS && global.YG_OPTIONS.auto === false)) scheduleInit();
 })(window);

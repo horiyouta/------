@@ -76,6 +76,7 @@ window.LiquidAudio = (function () {
   }, { passive: true });
 
   function ensureStarted() {
+    if (!enabled) return;   // OFF の間は音源ファイルを取りに行かない
     if (started) { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); return; }
     started = true;
     start();
@@ -224,7 +225,15 @@ window.LiquidAudio = (function () {
     configure: function (opts) { Object.assign(CONFIG, opts || {}); },
     setEnabled: function (on) {
       enabled = !!on;
-      if (enabled) { if (started) start(); } else stop();
+      if (enabled) {
+        trySubscribeWithRetry(6);
+        if (started) start();
+      } else {
+        stop();
+        /* 購読解除: liquid-bg 側の毎フレームの波状態読み出し（GPU→CPU）も止まる */
+        if (window.LiquidBG && typeof window.LiquidBG.onWave === 'function') window.LiquidBG.onWave(null);
+        usingSimState = false; latestWave = null;
+      }
     },
     /* デバッグ用：現在の実測値と強さを見る */
     debug: function () {

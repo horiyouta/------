@@ -29,7 +29,7 @@ window.BGMAudio = (function () {
     var started = false, loopStarted = false;
     var nextStartTime = 0, schedulerTimer = null;
     var isDucked = false;
-    var enabled = true;
+    var enabled = true;   // false の間は鳴らさない（YumeiroGlass の BGM トグル用。ダッキングとは独立）
 
     function ensureContext() {
         if (audioCtx) return;
@@ -93,11 +93,19 @@ window.BGMAudio = (function () {
         var now = audioCtx.currentTime;
         baseGain.gain.cancelScheduledValues(now);
         baseGain.gain.setValueAtTime(0, now);
-        baseGain.gain.linearRampToValueAtTime(CONFIG.VOLUME, now + CONFIG.FADE_IN_MS / 1000);
+        baseGain.gain.linearRampToValueAtTime(enabled ? CONFIG.VOLUME : 0, now + CONFIG.FADE_IN_MS / 1000);
+    }
+
+    function applyEnabled() {
+        if (!audioCtx || !baseGain || !loopStarted) return;
+        var now = audioCtx.currentTime;
+        baseGain.gain.cancelScheduledValues(now);
+        baseGain.gain.setValueAtTime(baseGain.gain.value, now);
+        baseGain.gain.linearRampToValueAtTime(enabled ? CONFIG.VOLUME : 0, now + (enabled ? CONFIG.FADE_IN_MS : 400) / 1000);
     }
 
     function start() {
-        if (!enabled) return;
+        if (!enabled) return;   // OFF の間はファイルも取りに行かない
         if (started) {
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
             return;
@@ -117,6 +125,14 @@ window.BGMAudio = (function () {
     return {
         configure: function (opts) { Object.assign(CONFIG, opts || {}); },
 
+        /* ON/OFF（OFF は完全無音へフェードアウト。ON にすると未開始なら再生を開始する）。
+           旧実装は OFF を duck()（5%に絞る）で代用していたため、完全には消えなかった。 */
+        setEnabled: function (on) {
+            enabled = !!on;
+            if (enabled) { if (!started) start(); else { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); applyEnabled(); } }
+            else applyEnabled();
+        },
+
         /* on=true: YouTube再生中扱い → なめらかに素早くほぼ無音へ
            on=false: 通常音量へゆっくり復帰 */
         duck: function (on) {
@@ -130,17 +146,6 @@ window.BGMAudio = (function () {
             duckGain.gain.cancelScheduledValues(now);
             duckGain.gain.setValueAtTime(duckGain.gain.value, now);
             duckGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + durationMs / 1000);
-        },
-        // Dream Voice の設定画面向け。停止ではなく確実に無音化するので、
-        // 既にスケジュール済みのクロスフェード音も残らない。
-        setEnabled: function (on) {
-            enabled = !!on;
-            if (!audioCtx || !baseGain) return;
-            var now = audioCtx.currentTime;
-            baseGain.gain.cancelScheduledValues(now);
-            baseGain.gain.setValueAtTime(baseGain.gain.value, now);
-            baseGain.gain.linearRampToValueAtTime(enabled ? CONFIG.VOLUME : 0, now + 0.12);
-            if (enabled && started) start();
         },
 
         debug: function () {

@@ -22,11 +22,18 @@ window.LiquidBG = window.LiquidBG || {
   dropAt: function () { },
   getWaveState: function () { return null; },
   onWave: function () { },
-  setEnabled: function () { }
+  setEnabled: function () { },
+  stats: function () { return null; }
 };
 
-(function () {
+/* <head> 内で読み込まれても落ちないよう、<body> が出来てから起動する。
+   （旧版は読み込み時点で getElementById('liquid') を実行していたため、canvas が未配置だと
+     null.getContext で例外 → LiquidBG が «未初期化のスタブ» のまま残り、ガラスは
+     ただの CSS すりガラスになっていた。） */
+function __yumeiroLiquidBoot() {
   'use strict';
+  if (window.__liquidBgBooted) return;   /* 同じスクリプトが2回読み込まれても起動は1回だけ */
+  window.__liquidBgBooted = true;
 
   /* =======================================================================
      CONFIG — ここだけで見た目・負荷・挙動を調整できます
@@ -35,8 +42,8 @@ window.LiquidBG = window.LiquidBG || {
     /* --- 解像度 / 負荷 --- */
     SIM_RES: 128,       // 流体（速度・圧力）グリッド短辺
     RIPPLE_RES: 340,       // 波動グリッド短辺
-    DPR_MAX: 2.0,
-    MAX_PIXELS: 4600000,   // 解像度上限。低いと «ぼやけて淡く» 見えるので高め
+    DPR_MAX: 1.75,
+    MAX_PIXELS: 3300000,   // 解像度上限。低いと «ぼやけて淡く» 見えるので高め
     PRESSURE_ITER: 12,
 
     /* --- 流体 --- */
@@ -120,12 +127,25 @@ window.LiquidBG = window.LiquidBG || {
     GLASS_CAUSTIC: 0.18       // ガラスの下に落ちる集光 ※控えめ
   };
 
+  /* window.LIQUID_BG_CONFIG = { ... } で上書き可能（YumeiroGlass の quality プリセットもここ経由） */
+  if (window.LIQUID_BG_CONFIG) for (var __k in window.LIQUID_BG_CONFIG) if (__k in CONFIG) CONFIG[__k] = window.LIQUID_BG_CONFIG[__k];
+
   var MAXF = 8; /* 浮遊要素の最大数 */
 
+  /* canvas が無ければ自動生成（HTML に <canvas id="liquid"> を書かなくてよい） */
   var canvas = document.getElementById('liquid');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'liquid';
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:block;z-index:-1;pointer-events:none;';
+    document.body.insertBefore(canvas, document.body.firstChild);
+  }
 
   function disable() {
     canvas.style.display = 'none';
+    /* 水面が使えない環境では、泡背景もどこにも表示されない（visibility:hidden のソース用）ので止める */
+    if (window.BubbleBG && window.BubbleBG.setEnabled) window.BubbleBG.setEnabled(false);
   }
 
   /* ---------------------------------------------------------- WebGL 初期化 */
@@ -679,36 +699,38 @@ window.LiquidBG = window.LiquidBG || {
   ].join('\n');
 
   /* ------------------------------------------------------ プログラム生成 */
-  function compile(type, src) {
-    var s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error(gl.getShaderInfoLog(s), src);
-      return null;
-    }
-    return s;
-  }
+  var vsShared = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vsShared, VERT);
+  gl.compileShader(vsShared);
 
+  /* ステータスはここでは問い合わせない（問い合わせた瞬間に GPU プロセスの完了待ちで直列化されるため）。
+     16本ぶんを全部発行してから finalizeProgram() でまとめて確認する → 起動時間の短縮。 */
   function createProgram(fragSrc) {
-    var vs = compile(gl.VERTEX_SHADER, VERT);
-    var fs = compile(gl.FRAGMENT_SHADER, fragSrc);
-    if (!vs || !fs) return null;
+    var fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, fragSrc);
+    gl.compileShader(fs);
     var p = gl.createProgram();
-    gl.attachShader(p, vs);
+    gl.attachShader(p, vsShared);
     gl.attachShader(p, fs);
     gl.bindAttribLocation(p, 0, 'aPos');
     gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(p));
+    return { p: p, fs: fs };
+  }
+
+  function finalizeProgram(o) {
+    if (!o) return null;
+    if (!gl.getProgramParameter(o.p, gl.LINK_STATUS)) {
+      if (!gl.getShaderParameter(o.fs, gl.COMPILE_STATUS)) console.error('[liquid-bg] shader compile failed:\n' + gl.getShaderInfoLog(o.fs));
+      else console.error('[liquid-bg] program link failed:\n' + gl.getProgramInfoLog(o.p));
       return null;
     }
-    var u = {}, count = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    var u = {}, count = gl.getProgramParameter(o.p, gl.ACTIVE_UNIFORMS);
     for (var i = 0; i < count; i++) {
-      var nm = gl.getActiveUniform(p, i).name.replace('[0]', '');
-      u[nm] = gl.getUniformLocation(p, nm);
+      var nm = gl.getActiveUniform(o.p, i).name.replace('[0]', '');
+      u[nm] = gl.getUniformLocation(o.p, nm);
     }
-    return { p: p, u: u };
+    gl.deleteShader(o.fs);
+    return { p: o.p, u: u };
   }
 
   var progCopy = createProgram(F_COPY);
@@ -727,6 +749,13 @@ window.LiquidBG = window.LiquidBG || {
   var progBlur = createProgram(F_BLUR);
   var progProbe = createProgram(F_PROBE);
   var progGlass = createProgram(F_GLASS);
+
+  progCopy = finalizeProgram(progCopy); progAdvect = finalizeProgram(progAdvect); progBfecc = finalizeProgram(progBfecc);
+  progDiv = finalizeProgram(progDiv); progCurl = finalizeProgram(progCurl); progVort = finalizeProgram(progVort);
+  progPressure = finalizeProgram(progPressure); progGradient = finalizeProgram(progGradient);
+  progSplatV = finalizeProgram(progSplatV); progSplatR = finalizeProgram(progSplatR); progRipple = finalizeProgram(progRipple);
+  progWater = finalizeProgram(progWater); progDown = finalizeProgram(progDown); progBlur = finalizeProgram(progBlur);
+  progProbe = finalizeProgram(progProbe); progGlass = finalizeProgram(progGlass);
 
   if (!progWater || !progRipple || !progAdvect) { disable(); return; }
   var glassOK = !!(progGlass && progProbe && progBlur && progDown);
@@ -817,7 +846,7 @@ window.LiquidBG = window.LiquidBG || {
   var bgSourceCanvas = null, bgWaitStart = performance.now(), bgGaveUp = false;
 
   function acquireBubbleSource() {
-    if (bgSourceCanvas || bgGaveUp) return;
+    if (bgSourceCanvas) return;
     if (window.BubbleBG && window.BubbleBG.canvas) bgSourceCanvas = window.BubbleBG.canvas;
   }
   acquireBubbleSource();
@@ -840,9 +869,15 @@ window.LiquidBG = window.LiquidBG || {
   }
 
   /* #bubbleGl の「今のフレーム」だけをそのままアップロード */
+  var lastBubbleTick = -1;
   function drawBubbleFrame() {
     acquireBubbleSource();
     if (!bgSourceCanvas || !window.BubbleBG.ready || bgSourceCanvas.width < 2 || bgSourceCanvas.height < 2) return false;
+    /* 泡側が新しいフレームを描いたときだけ転送する（泡を 30fps に間引いている場合、
+       間のフレームでは前回のテクスチャをそのまま使う = canvas→GPU 転送が半減） */
+    var t = window.BubbleBG.tick | 0;
+    if (t === lastBubbleTick && bgTexW > 0) return true;
+    lastBubbleTick = t;
     uploadBgImage(bgSourceCanvas, bgSourceCanvas.width, bgSourceCanvas.height);
     return true;
   }
@@ -924,24 +959,64 @@ window.LiquidBG = window.LiquidBG || {
   var floaters = [];
   var pxScale = 1;
 
+  var candidateCount = 0;
+  function newFloater(el) {
+    return {
+      el: el, glass: false, float: true,
+      bx: 0, by: 0, bw: 10, bh: 10, radius: 0,
+      ox: 0, oy: 0, vx: 0, vy: 0,
+      rz: 0, wz: 0, tx: 0, ty: 0, vtx: 0, vty: 0,
+      px: 0, py: 0
+    };
+  }
+
+  /* [data-float]（ビート板として揺れる）と [data-glass]（本物のガラスとして描画）は独立。
+     旧版は [data-float] だけを収集していたため、[data-glass] 単体（.yg-liquid-glass だけ付けた
+     要素）は一切ガラス化されず、CSS のすりガラスのままだった。今回は両方を収集し、
+     float 属性が無いものは «動かないガラス» として描画する。
+     MAXF-1 枚という枠は、非表示ページ・画面外の要素で消費しないよう «表示中かつ画面付近» だけを数える。 */
   function collectFloaters() {
-    var list = document.querySelectorAll('[data-float]');
-    floaters.length = 0;
-    /* MAXF のうち1枠は「音響センサー」としてポインタのプローブ専用に予約する
-       （liquid-audio.js が波の実際の速度・渦度を読むために使う）ので、
-       実際のビート板は MAXF-1 枚までとする。 */
-    var cap = MAXF - 1;
-    for (var i = 0; i < list.length && i < cap; i++) {
-      floaters.push({
-        el: list[i],
-        glass: list[i].hasAttribute('data-glass'),
-        bx: 0, by: 0, bw: 10, bh: 10, radius: 0,
-        ox: 0, oy: 0, vx: 0, vy: 0,
-        rz: 0, wz: 0, tx: 0, ty: 0, vtx: 0, vty: 0,
-        px: 0, py: 0
-      });
+    var list = document.querySelectorAll('[data-float],[data-glass]');
+    var vw = window.innerWidth, vh = window.innerHeight, cap = MAXF - 1;
+    var prevByEl = new Map();
+    for (var k = 0; k < floaters.length; k++) prevByEl.set(floaters[k].el, floaters[k]);
+    var next = [];
+    candidateCount = 0;
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (!el.getClientRects().length) continue;            /* display:none（非表示ページなど）は対象外 */
+      candidateCount++;
+      if (next.length >= cap) continue;
+      var r = el.getBoundingClientRect();
+      if (r.bottom < -240 || r.top > vh + 240 || r.right < -240 || r.left > vw + 240) continue;
+      var f = prevByEl.get(el) || newFloater(el);
+      f.glass = el.hasAttribute('data-glass');
+      f.float = el.hasAttribute('data-float');
+      next.push(f);
     }
-    if (floaters.length && glassOK) document.body.classList.add('gl-glass');
+    /* 枠から外れた要素は姿勢を戻し、ライブ属性を外す */
+    for (var j = 0; j < floaters.length; j++) {
+      var old = floaters[j];
+      if (next.indexOf(old) < 0) {
+        if (old.float) old.el.style.transform = '';
+        old.el.removeAttribute('data-yg-glass-live');
+      }
+    }
+    floaters.length = 0;
+    for (var m = 0; m < next.length; m++) {
+      floaters.push(next[m]);
+      if (next[m].glass && glassOK) next[m].el.setAttribute('data-yg-glass-live', '');
+      else next[m].el.removeAttribute('data-yg-glass-live');
+    }
+    syncGlassClass();
+  }
+
+  /* 本物のガラスが描かれている間だけ、CSS 側の二重描画（すりガラス）を弱める */
+  function syncGlassClass() {
+    var on = false;
+    if (shown && glassOK) for (var i = 0; i < floaters.length; i++) if (floaters[i].glass) { on = true; break; }
+    document.body.classList.toggle('yg-gl-glass', on);
+    document.body.classList.toggle('gl-glass', on);
   }
 
   function measure() {
@@ -964,7 +1039,12 @@ window.LiquidBG = window.LiquidBG || {
     var s = window.scrollY || 0, d = s - lastScrollY;
     lastScrollY = s;
     for (var i = 0; i < floaters.length; i++) floaters[i].by -= d;
+    if (candidateCount > floaters.length) {   /* 未有効の候補があるときだけ、画面内のものへ入れ替え */
+      clearTimeout(rescanTimer);
+      rescanTimer = setTimeout(function () { collectFloaters(); needMeasure = true; }, 160);
+    }
   }, { passive: true });
+  var rescanTimer = 0;
 
   /* ---------------------------------------------------- プローブ読み戻し */
   var P_GRAD = 0.5, P_VEL = 800.0, P_H = 4.0, P_CURL = 140.0;
@@ -1061,6 +1141,7 @@ window.LiquidBG = window.LiquidBG || {
     var iw = window.innerWidth, ih = window.innerHeight;
     for (var i = 0; i < floaters.length; i++) {
       var f = floaters[i], o = i * 12;
+      if (!f.float) continue;   /* data-glass のみ: 位置は固定のまま、ガラスとして描くだけ */
       var gx = dec16(o) * P_GRAD;
       var gy = dec16(o + 2) * P_GRAD;
       var fvx = dec16(o + 4) * P_VEL;
@@ -1468,9 +1549,9 @@ window.LiquidBG = window.LiquidBG || {
 
     updateBgTexture();
     draw();
-    if (glassOK) probePass(); /* 音響センサー用にフローターが無くても毎フレーム実行 */
+    if (glassOK && (floaters.length || waveCB)) probePass(); /* ビート板がある or 音響(liquid-audio)が購読中のときだけ */
 
-    if (!shown && bgReady) { shown = true; canvas.classList.add('ready'); }
+    if (!shown && bgReady) { shown = true; canvas.classList.add('ready'); syncGlassClass(); document.dispatchEvent(new CustomEvent('yg:bg-ready')); }
 
     if (smoothDt > 30 && downgrades < 2) {
       if (++slowFrames > 100) { slowFrames = 0; downgrades++; quality *= 0.8; resize(); needMeasure = true; }
@@ -1483,7 +1564,7 @@ window.LiquidBG = window.LiquidBG || {
   var resizeTimer = 0;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { resize(); needMeasure = true; }, 140);
+    resizeTimer = setTimeout(function () { resize(); collectFloaters(); needMeasure = true; }, 140);
   }, { passive: true });
 
   document.addEventListener('visibilitychange', function () {
@@ -1514,6 +1595,12 @@ window.LiquidBG = window.LiquidBG || {
        ポインタ位置における実測の水面状態（自己減衰・慣性込み）。
        glassOK な環境でのみ有効。無効時は null を返すので、呼び出し側は
        null チェックのうえ、旧来のマウス速度ベースにフォールバックすること。 */
+    stats: function () {
+      return {
+        glassOK: glassOK, shown: shown, active: floaters.length, glassActive: floaters.filter(function (f) { return f.glass; }).length,
+        candidates: candidateCount, maxActive: MAXF - 1, canvas: [canvas.width, canvas.height], downgrades: downgrades
+      };
+    },
     getWaveState: function () { return waveState; },
     onWave: function (cb) { waveCB = (typeof cb === 'function') ? cb : null; },
     setEnabled: function (on) {
@@ -1535,10 +1622,13 @@ window.LiquidBG = window.LiquidBG || {
     running = false;
     (function once() {
       draw();
-      if (!shown && bgReady) { shown = true; canvas.classList.add('ready'); }
+      if (!shown && bgReady) { shown = true; canvas.classList.add('ready'); syncGlassClass(); document.dispatchEvent(new CustomEvent('yg:bg-ready')); }
       else if (!bgReady) setTimeout(once, 120);
     })();
   } else {
     start();
   }
-})();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { try { __yumeiroLiquidBoot(); } catch (e) { console.error('[liquid-bg]', e); } }, { once: true });
+else { try { __yumeiroLiquidBoot(); } catch (e) { console.error('[liquid-bg]', e); } }

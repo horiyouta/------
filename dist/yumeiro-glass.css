@@ -1,16 +1,13 @@
 /* ============================================================================
-   Yumeiro Glass / ゆめいろグラス — v1.1.0
+   Yumeiro Glass / ゆめいろグラス — v1.2.0
    ----------------------------------------------------------------------------
    「モダン・サイバーな Liquid Glass」×「ゆめふわで明るくかわいい」を両立する
    ブランド専用 CSS ライブラリ。Tailwind CSS などのユーティリティフレームワーク
    と併用する前提で、クラスはすべて `yg-` プレフィックス、CSS変数はすべて
    `--yg-` プレフィックスに統一してある（Tailwindの `bg-*` 等と衝突しない）。
 
-   読み込み順の目安:
-     1. Tailwind (任意)
-     2. yumeiro-glass.css   ← このファイル
-     3. vendor/bubble-bg.js, vendor/liquid-bg.js (任意・背景エンジン)
-     4. yumeiro-glass.js
+   通常は dist/yumeiro-glass.js を1行読み込むだけで、このファイルも自動で読み込まれる
+   （手動で <link> する場合は Tailwind を使うなら Tailwind の «後» に置くと確実）。
    ========================================================================= */
 
 /* ==========================================================================
@@ -187,7 +184,7 @@
 
 /* 本物のWebGLガラスとして [data-yg-liquid] (=[data-glass]) が再描画されている間、
    CSS側の二重描画を消す（本家 style.css の body.gl-glass と同じ仕組み） */
-body.yg-gl-glass [data-yg-glass-sync]{
+body.yg-gl-glass [data-yg-glass-live]{
   background: var(--yg-glass-bg-soft) !important;
   box-shadow: none !important;
   backdrop-filter: blur(10px) saturate(150%) !important;
@@ -204,15 +201,31 @@ body.yg-gl-glass [data-yg-glass-sync]{
 #liquid{
   position: fixed; inset: 0; width: 100%; height: 100%;
   display: block; z-index: -1; touch-action: none; pointer-events: none;
+  /* 最初の1フレームが描けるまでは透明にして、下のフォールバック背景を見せる（真っ黒/真っ白の瞬間を作らない） */
+  opacity: 0; transition: opacity .9s var(--yg-ease, ease);
 }
-.yg-bg-fallback{
+#liquid.ready{ opacity: 1; }
+@media (prefers-reduced-motion: reduce){ #liquid{ transition: none; } }
+/* フォールバック背景: <body> に自動適用（クラス不要）。WebGL の背景が表示されるまで、
+   および WebGL が使えない環境で、テーマ(light/dark)に合わせたやわらかい背景を見せる。
+   自分で background を指定したいときは body に class="yg-bg-none" を付けると無効化できる。 */
+body[data-yg-root]:not(.yg-bg-none), .yg-bg-fallback{
   background-image:
     radial-gradient(60% 50% at 20% 25%, rgba(255,196,150,.55), transparent 65%),
     radial-gradient(55% 45% at 78% 30%, rgba(255,182,215,.50), transparent 66%),
-    radial-gradient(65% 55% at 55% 78%, rgba(180,166,255,.55), transparent 66%),
+    radial-gradient(65% 55% at 55% 78%, rgba(200,186,255,.55), transparent 66%),
     radial-gradient(60% 50% at 12% 82%, rgba(160,232,255,.50), transparent 66%),
-    linear-gradient(160deg,#1a1430,#2a2050 55%,#152036);
+    linear-gradient(160deg,#fff4ec,#f6eaff 55%,#e9f5ff);
   background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;
+  min-height: 100vh;
+}
+[data-yg-theme="dark"] body[data-yg-root]:not(.yg-bg-none), [data-yg-theme="dark"] .yg-bg-fallback{
+  background-image:
+    radial-gradient(60% 50% at 20% 25%, rgba(255,196,150,.22), transparent 65%),
+    radial-gradient(55% 45% at 78% 30%, rgba(255,182,215,.20), transparent 66%),
+    radial-gradient(65% 55% at 55% 78%, rgba(180,166,255,.28), transparent 66%),
+    radial-gradient(60% 50% at 12% 82%, rgba(160,232,255,.20), transparent 66%),
+    linear-gradient(160deg,#1a1430,#2a2050 55%,#152036);
 }
 
 /* ==========================================================================

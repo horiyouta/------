@@ -61,6 +61,8 @@ window.BubbleBG = window.BubbleBG || { canvas: null, ready: false, tick: 0 };
 
 (function(){
 'use strict';
+if (window.__bubbleBgLoaded) return;   /* 同じスクリプトが2回読み込まれても1つだけ動かす */
+window.__bubbleBgLoaded = true;
 
 /* ============================================================
    ★ ここだけ触れば絵作りを調整できます（実行中の変更も反映）
@@ -97,6 +99,12 @@ const LOOK = {
   grain:       0.008
 };
 
+/* setLook / look は boot() より前（スクリプト読み込み直後）から使えるようにする。
+   旧版は boot()（描画開始時）の末尾で定義していたため、YumeiroGlass.setTheme('dark') を
+   早い段階で呼ぶと setLook が未定義で無視され、ダーク時の背景トーンが反映されなかった。 */
+window.BubbleBG.look = LOOK;
+window.BubbleBG.setLook = function(o){ if(o) for(const k in o){ if(k in LOOK) LOOK[k] = o[k]; } };
+
 function boot(){
 
 /* ============================================================
@@ -120,6 +128,13 @@ const RES = {
   SCALE_MIN:      0.45,
   SCALE_MAX:      1.00
 };
+if (window.BUBBLE_BG_RES) for (const k in window.BUBBLE_BG_RES) if (k in RES) RES[k] = window.BUBBLE_BG_RES[k];
+/* 背景(泡)の更新レート。水面(liquid-bg)は常に 60fps で動くので、ゆっくりした泡の動きは
+   30fps でも見た目はほぼ変わらず、GPU 負荷と canvas→テクスチャ転送が約半分になる。
+   window.BG_BUBBLE_FPS = 60 で従来どおり（0 または 60 以上 = 制限なし）。 */
+const BG_FPS = (typeof window.BG_BUBBLE_FPS === 'number') ? window.BG_BUBBLE_FPS : 30;
+const FRAME_MIN_MS = (BG_FPS > 0 && BG_FPS <= 60) ? (1000 / BG_FPS) - 2.5 : 0;   // 60 以下なら上限あり（120/144Hz 画面でも泡は最大60fps）
+const THROTTLED = BG_FPS > 0 && BG_FPS < 59;
 const ENV_W = 1024, ENV_H = 512;   // 映り込み専用の等距円筒マップ
 const MAXB  = 24;
 
@@ -197,24 +212,29 @@ function compile(type, src, name){
   return s;
 }
 function link(vsSrc, fsSrc, name){
-  const vs = compile(gl.VERTEX_SHADER, vsSrc, name+':VS');
-  const fs = compile(gl.FRAGMENT_SHADER, fsSrc, name+':FS');
+  /* ここではステータスを問い合わせない（問い合わせると GPU プロセスの完了待ちで直列化される）。
+     全プログラムを発行したあとに finalizeLink() でまとめて確認する。 */
+  const vs = gl.createShader(gl.VERTEX_SHADER);   gl.shaderSource(vs, vsSrc); gl.compileShader(vs);
+  const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, fsSrc); gl.compileShader(fs);
   const p = gl.createProgram();
   gl.attachShader(p, vs); gl.attachShader(p, fs);
   gl.linkProgram(p);
-  if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
-    console.error('[bubble-bg] program link failed: ' + name + '\n' + (gl.getProgramInfoLog(p)||'(no log)'));
-    throw new Error('program link failed: ' + name);
+  return { p: p, u: {}, vs: vs, fs: fs, name: name };
+}
+function finalizeLink(P){
+  if(!gl.getProgramParameter(P.p, gl.LINK_STATUS)){
+    if(!gl.getShaderParameter(P.vs, gl.COMPILE_STATUS)) console.error('[bubble-bg] shader compile failed: ' + P.name + ':VS\n' + (gl.getShaderInfoLog(P.vs)||'(no log)'));
+    if(!gl.getShaderParameter(P.fs, gl.COMPILE_STATUS)) console.error('[bubble-bg] shader compile failed: ' + P.name + ':FS\n' + (gl.getShaderInfoLog(P.fs)||'(no log)'));
+    console.error('[bubble-bg] program link failed: ' + P.name + '\n' + (gl.getProgramInfoLog(P.p)||'(no log)'));
+    throw new Error('program link failed: ' + P.name);
   }
-  gl.deleteShader(vs); gl.deleteShader(fs);
-  const P = { p: p, u: {} };
-  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  gl.deleteShader(P.vs); gl.deleteShader(P.fs); P.vs = P.fs = null;
+  const n = gl.getProgramParameter(P.p, gl.ACTIVE_UNIFORMS);
   for(let i=0;i<n;i++){
-    const info = gl.getActiveUniform(p, i);
+    const info = gl.getActiveUniform(P.p, i);
     const nm = info.name.replace(/\[0\]$/, '');
-    P.u[nm] = gl.getUniformLocation(p, nm);
+    P.u[nm] = gl.getUniformLocation(P.p, nm);
   }
-  return P;
 }
 
 let buildOK = true;
@@ -915,6 +935,7 @@ progStreak    = link(VS_QUAD,   FS_STREAK,    'streak');
 progComposite = link(VS_QUAD,   FS_COMPOSITE, 'composite');
 progLine      = link(VS_LINE,   FS_LINE,      'line');
 progDust      = link(VS_PT,     FS_PT,        'dust');
+[progEnv, progBG, progBubble, progCopy, progDown, progUp, progStreak, progComposite, progLine, progDust].forEach(finalizeLink);
 }catch(e){
   buildOK = false;
   console.error('[bubble-bg] shader build failed: ' + e.message);
@@ -1035,7 +1056,10 @@ initBubbles(MAXB, FIXED_SEED);
    ============================================================ */
 /* 初回は少し控えめに始め、実測が速ければ適応スケーラが上限まで引き上げる
    （弱い端末で最初の数秒がカクつくのを防ぐため） */
-let qScale = 0.80;
+/* FPS を間引いている場合は、浮いた GPU 時間を解像度に回して最初から等倍で始める。
+   （間引き中のフレーム間隔は最小でも約 16.7ms 相当になり、«余裕あり(<12ms)» の判定が出せないため、
+     0.80 から始めると解像度が永遠に上がらなくなる。重い端末は下の adapt() が自動で下げる） */
+let qScale = THROTTLED ? 1.00 : 0.80;
 function resize(){
   const cw = Math.max(1, Math.floor(window.innerWidth));
   const ch = Math.max(1, Math.floor(window.innerHeight));
@@ -1360,11 +1384,13 @@ function renderPass(dt){
 function frame(ts){
   raf = requestAnimationFrame(frame);
   const rawMs = ts - prevTs;
+  if(FRAME_MIN_MS && rawMs < FRAME_MIN_MS) return;   /* FPS 上限: 描画を間引く */
   let dt = Math.min(0.05, rawMs/1000); prevTs = ts;
   if(toggles.paused) dt = 0;
   simTime += dt;
   renderPass(dt);
-  if(renderTick > 20) adapt(Math.min(rawMs, 100));
+  /* 間引き中は «1フレームあたりの時間» が長くなるので、60fps 換算に直してから適応判定に渡す */
+  if(renderTick > 20) adapt(Math.min(rawMs, 100) * (FRAME_MIN_MS ? BG_FPS / 60 : 1));
 }
 
 /* ============================================================
@@ -1377,8 +1403,7 @@ document.addEventListener('visibilitychange', function(){
 });
 
 /* チューニング用の外部インターフェース（任意） */
-window.BubbleBG.look = LOOK;
-window.BubbleBG.setLook = function(o){ if(o) for(const k in o){ if(k in LOOK) LOOK[k] = o[k]; } };
+window.BubbleBG.setEnabled = function(on){ if(on) startLoop(); else stopLoop(); };
 window.BubbleBG.stats = function(){
   return { fps: Math.round(fpsShow), w: W, h: H, scale: +qScale.toFixed(3), hdr: HDR, bubbles: LOOK.count };
 };
@@ -1388,10 +1413,15 @@ startLoop();
 
 } /* end boot() */
 
-if('requestIdleCallback' in window){
-  requestAnimationFrame(function(){ requestIdleCallback(boot, {timeout: 300}); });
-}else{
-  requestAnimationFrame(function(){ requestAnimationFrame(boot); });
+function scheduleBoot(){
+  if('requestIdleCallback' in window){
+    requestAnimationFrame(function(){ requestIdleCallback(boot, {timeout: 120}); });
+  }else{
+    requestAnimationFrame(function(){ requestAnimationFrame(boot); });
+  }
 }
+/* <head> 内で読み込まれても、<body> が出来てから起動する（canvas 未配置なら自動生成） */
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleBoot, { once: true });
+else scheduleBoot();
 
 })();
